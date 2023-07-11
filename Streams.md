@@ -48,4 +48,64 @@ $ a | b | c | d
 Este método pipe es la manera más sencilla de consumir streams. Se recomienda usar o _pipe_ o _eventos_, pero no mezclarlos.
 Normalmente si usamos el método _pipe_ no necesitamos usar _eventos_, pero si necesitamos consumir los streams de una manera más custom los _eventos_ pueden ser una buena manera de seguir.
 
+## Eventos de streams
 
+Por detrás el método _pipe_ realiza algunas funciones por nosotros, como manejo de errores, end-of-file, o las causas que hace que un stream sea más lento que otro.
+
+También podemos consumir streams directamente a través de _eventos_. Este código es equivalente al anterior, pero usando _eventos_:
+
+```
+## readable.pipe(writable);
+
+readable.on('data' (chunk) => {
+  writable.write(chunk);
+});
+
+readable.on('end', () => {
+  writable.end();
+});
+```
+
+Lista de eventos y funciones importantes en los readable y writable streams:
+
+### Readable streams:
+#### Eventos:
+- data
+- end
+- error
+- close
+- readable
+
+#### Funciones
+- pipe(), unpipe()
+- read(), unshift(), resume()
+- pause(), isPaused()
+- setEncoding()
+
+### Writable streams:
+#### Eventos:
+- drain
+- finish
+- error
+- close
+- pipe/unpipe
+
+#### Funciones:
+- write()
+- end()
+- cork(), uncork()
+- setDefaultEncoding()
+
+Los eventos y funciones están relacionados de alguna manera porque usualmente se usan a la vez.
+
+Los más importantes de los _readable streams_ son:
+- data: Emitido siempre que el stream pasa un chunk de datos al consumidor
+- end: Emitido cuando no hay más datos a ser consumidos por el stream.
+
+Los eventos más importantes en un _writable stream_ son:
+- drain: Señal de que el writable stream puede recibir más datos.
+- finish: Emitido cuando todos los datos se han vaciado en el sistema subyacente.
+
+Los eventos y funciones se pueden combinar para hacer un custom y optimizado uso de streams. Para consumir un readable stream podemos usar el método pipe/unpipe, 
+o los métodos read/unshift/reasume.
+Para consumir un writable stream podemos hacerlo destino de un pipe/unpipe o escribirlo con el método write y un método end cuando hayamos finalizado.
