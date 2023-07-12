@@ -189,4 +189,237 @@ process.stdin.pipe(process.stdout);
 
 ## Implementar un Readable Stream
 
+Para implementar un readable stream necesitamos del módulo Readable y construir un objeto desde éste, así como implementar el método read():
+
+```
+const { Readable } = require('stream');
+
+const inStream = new Readable({
+  read()
+});
+```
+
+Existe una manera simple de crear readable streams. Podemos simplemente hacer push de los datos que queremos que los consumers consuman:
+
+```
+const { Readable } = require('stream');
+
+const inStream = new Readable({
+  read()
+});
+
+inStream.push('asdfasdfsadfda');
+inStream.push('sdkjghsdkfhkdjsfh');
+
+inStream.push(null); // No más datos
+
+inStream.pipe(process.stdout);
+```
+
+Cuando se hace push de un null es una señal de que el stream no tiene más datos.
+
+Para consumir este readable stream podemos simplemente hacer pipe junto al writable stream process.stdout.
+
+Cuando corremos el código de arriba, estaremos leyendo todos los datos de inStream y haciendo echo. 
+
+Una mejor manera de realizar esto es hacer push de datos bajo demanda, cuando el consumer lo pida. Podemos hacerlo implementando el método read() en la configuración del objeto.
+
+```
+const inStream = new Readable({
+  read(size) {
+    // Se pide la cantidad de datos que se quiere leer
+  }
+});
+```
+
+Se podría además hacer una implementación donde se especifique el número de caracter desde el que comenzar, enviando un caracter cada vez:
+
+```
+const inStream = new Readable({
+  read(size) {
+    this.push(String.fromCharCode(this.currentCharCode++));
+    if (this.currentCharCode > 90) {
+      this.push(null);
+    }
+  }
+});
+
+inStream.currentCharCode = 65;
+
+inStream.pipe(process.stdout);
+```
+
+Mientras que el consumer siga leyendo, el método read seguirá lanzando datos. Será necesario poner un límite a esto.
+
+## Implementar un Duplex/Transform Stream.
+
+Con Duplex streams podemos implementar ambos, readable y writable streams, en el mismo objeto. 
+
+```
+const { Duplex } = require('stream');
+
+const inoutStream = new Duplex({
+  write(chunk, encoding, callback) {
+    console.log(chunk.toString());
+    callback();
+  },
+  read(size) {
+    this.push(String.fromCharCode(this.currentCharCode++));
+    if (this.currentCharCode > 90) {
+      this.push(null);
+    }
+  }
+});
+
+inoutStream.currentCharCode = 65;
+
+process.stdin.pipe(inoutstream).pipe(process.stdout);
+```
+
+Combinando los métodos tendremos que leerá las letras de la A a Z que provienen de stdin, y a la vez realizará el echo hacia stdout.
+
+Las partes readable y writable trabajan de manera independiente. Es sólo una manera de agrupar dos features en un único objeto.
+
+Un transform stream es un duplex stream capaz de modificar la entrada antes de lanzar datos por la salida.
+
+Para un transform stream no implementamos read o write, sólo transform, que combina ambos. Tiene la firma del método write y puede usar push dentro de él.
+
+```
+const { Transform } = require('stream');
+
+const upperCaseTr = new Transform({
+  transform(chunk, encoding, callback) {
+    this.push(chunk.toString().toUpperCase());
+    callback();
+  }
+});
+
+process.stdin.pipe(upperCaseTr).pipe(process.stdout);
+```
+
+En este transform stream, que es consumido exactamente igual que el anterior duplex, sólo implementamos transform(), donde convertimos el chunk a upper case y luego se hace push.
+
+## Modo objeto de Streams
+
+Por defecto los streams esperan valores de string/Buffer. Hay un objectMode flag para que el stream acepte cualquier objeto de JavaScript.
+
+```
+const { Transform } = require('stream');
+
+const commaSplitter = new Transform({
+  readableObjectMode: true,
+  transform(chunk, encoding, callback) {
+    this.push(chunk.toString().trim().split(', '));
+    callback();
+  }
+});
+
+const arrayToObject = new Transform({
+  readableObjectMode: true,
+  writableObjectMode: true,
+  transform(chunk, encoding, callback) {
+    const obj = {};
+    for (let i = 0; i < chunk.length; i+=2) {
+      obj[chunk[i]] = chunk[i+1];
+    }
+    this.push(obj);
+    callback();
+  }
+});
+
+const objectToString = new Transform({
+  writableObject: true,
+  transform(chunk, encoding, callback) {
+    this.push(JSON.stringify(chunk) + '\n');
+    callback();
+  }
+});
+
+process.stdin
+  .pipe(commaSplitter)
+  .pipe(arrayToObject)
+  .pipe(objectToString)
+  .pipe(process.stdout);
+```
+
+Pasamos el input string (ej. 'a, b, c, d') por commaSplitter, que manda un array de strings a arrayToObject (salida: {'a': 'b', 'c': 'd'}). Éste manda el objeto a objectToString, devolviendo el objeto como un json string.
+
+## Node transform streams
+
+Node tiene algunos transform streams que pueden ser útiles. Como pueden ser zlib y crypto streams.
+
+Ejemplo de zlib.createGzip() stream que combinado con fs puede crear un script de compresión de ficheros:
+
+```
+const fs = require('fs');
+const zlib = require('zlib');
+const file = process.argv[2];
+
+fs.createReadStream(file)
+  .pipe(zlib.createGzip())
+  .pipe(fs.createWriteStream(file + '.gz'));
+```
+
+Se pueden combinar el uso de pipe con eventos si fuese necesario:
+
+```
+const fs = require('fs');
+const zlib = require('zlib');
+const file = process.argv[2];
+
+fs.createReadStream(file)
+  .pipe(zlib.createGzip())
+  .on('data', () => process.stdout.write('.'))
+  .pipe(fs.createWriteStream(file + '.zz'))
+  .on('finish', () => console.log('Done'));
+```
+
+```
+const fs = require('fs');
+const zlib = require('zlib');
+const file = process.argv[2];
+
+const { Transform } = require('stream');
+
+const reportProgress = new Transform({
+  transform(chunk, encoding, callback) {
+    process.stdout.write('.');
+    callback(null, chunk);
+  }
+});
+
+fs.createReadStream(file)
+  .pipe(zlib.createGzip())
+  .pipe(reportProgress)
+  .pipe(fs.createWriteStream(file + '.zz'))
+  .on('finish', () => console.log('Done'));
+```
+
+reportProgress es un transform stream muy simple que sólo reporta el progreso escribiendo . en el terminal según se van leyendo los datos.
+
+Otro ejemplo sería en caso de necesitar codificar un fichero antes o después de hacer el gzip en él:
+
+```
+const crypto = require('crypto');
+// ...
+
+fs.createReadStream(file)
+  .pipe(zlib.createGzip())
+  .pipe(crypto.createCipher('aes192', 'a_secret'))
+  .pipe(reportProgress)
+  .pipe(fs.createWriteStream(file + '.zz'))
+  .on('finish', () => console.log('Done'));
+```
+
+El código para desencriptarlo sería: 
+
+```
+fs.createReadStream(file)
+  .pipe(crypto.createDecipher('aes192', 'a_secret'))
+  .pipe(zlib.createGunzip())
+  .pipe(reportProgress)
+  .pipe(fs.createWriteStream(file.slice(0, -3)))
+  .on('finish', () => console.log('Done'));
+```
+
 
