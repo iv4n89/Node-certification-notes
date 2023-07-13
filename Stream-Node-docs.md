@@ -100,3 +100,72 @@ Los streams Readable usan el API de EventEmitter para notificar cuando datos est
 Ambos Writable y Readable streams usan el EventEmitter de varias maneras para comunicar el estado actual del stream.
 
 Duplex y Transform streams son tanto Writable como Readable.
+
+Las aplicaciones que tanto escriben como consumen datos de un stream no requieren que se implemente la interfaz de Stream directamente y por lo general no hay razón para llamar a require('stream').
+
+## Writable streams
+
+Los streams writable son una abstracción del destino al que los datos serán escritos.
+
+Ejemplos de streams writable son:
+
+- Http requests, en el cliente
+- Http responses, en el server
+- fs write streams
+- zlib streams
+- crypto streams
+- TCP sockets
+- child process stdin
+- process.stdout, process.stderr
+
+Algunos de estos ejemplos son streams duplex que implementan la interfaz Writable.
+
+Todos los streams writable implementan la interfaz definida por la clase stream.Writable.
+
+Mientras que una instancia específica de writable puede diferir de varias maneras, todos los streams writable siguen el mismo patrón fundamental:
+
+```
+const myStream = getWritableStreamSomehow();
+myStream.write('some data');
+myStream.write('some more data');
+myStream.end('done writing data');
+```
+
+## Clase: stream.Writable
+
+### Event: 'close'
+
+El evento 'close' es emitido cuando un stream y cualquiera de sus recursos (un descriptor de fichero, por ejemplo) ha sido cerrado. El evento indica que no hay más eventos para ser emitido, y no ocurrirán más actividades.
+
+Un stream writable siempre emite el 'close' event si ha sido creado con el emitClose option.
+
+### Event: 'drain'
+
+Si una llamada a stream.write(chunk) retorna false, el evento 'drain' será emitido cuando sea apropiado resumir la escritura de datos al stream.
+
+```
+// Escribir datos al writable stream un millón de veces.
+
+function writeOneMillionTimes(writer, data, econding, callback) {
+  let i = 1000000;
+  write();
+  function write() {
+    let ok = true;
+    do {
+      i--;
+      if (i === 0) {
+        // Last time
+        writer.write(data, encoding, callback);
+      } else {
+        // Revisar si se puede continuar o esperar
+        // No pasar el callback, ya que aún no hemos acabado
+        ok = writer.write(data, encoding);
+      }
+    } while (i > 0 && ok);
+    if (i > 0) {
+      // Parar
+      // Escribir algo más mientras ocurre el evento 'drain'
+      writer.once('drain', write);
+    }
+  }
+}
