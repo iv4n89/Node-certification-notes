@@ -325,6 +325,7 @@ Es true inmediatamente antes de que el evento 'finish' sea emitido.
 - <number>
 
 Retorna el valor de highWaterMark pasado en el costructor de este writable.
+Es el tamaño del buffer interno del writable stream. Por defecto, 16384 (16 kb)
 
 ### writable.writableLength
 
