@@ -628,4 +628,132 @@ El método readable.read() lanza algo de datos fuera del internal buffer y lo re
 
 El argumento opcional size especifica el número de bytes a leer. Si la cantidad de bytes a leer no está disponible, null será retornado a menos que el stream haya finalizado, en cuyo caso todos los datos restantes del internal buffer serán retornados.
 
-Si size no es especificado, todos los datos contenidos
+Si size no es especificado, todos los datos contenidos en el buffer interno serán retornados.
+
+El size debe ser menor a 1 gb.
+
+El método readable.read() sólo se debe llamar en readable streams operando en paused mode. En flowing mode readable.read() es llamado automáticamente hasta que el internal buffer haya sido totalemente dreando.
+
+```
+cosnt readable = getReadableStreamSomehow();
+
+// 'readable' puede ser lanzado múltiples veces teniendo datos
+readable.on('readable', () => {
+  let chunk;
+  console.log('Stream is readable (new data received in buffer)');
+  // Usar un loop para asegurarse de que se lee todos los datos disponibles
+  while(null !== (chunk = readable.read())) {
+    console.log(`Read ${chunk.length} bytes of data...`);
+  }
+});
+
+// 'end' será lanzado una vez que no haya más datos disponibles
+readable.on('read', () => {
+  console.log('Reached end of stream.');
+});
+```
+
+Cada llamada a readable.read() retorna un chunk de datos, o null. Los chunks no son concatenados. Un while loop es necesario para consumir todos loss datos seguidos en un buffer. Cuando tenemos un fichero largo y retorna null habiendo consumido todos los datos buffered, pero aún hay datos por venir que no han pasado por buffer, el evento 'readable' será lanzado nuevamente cuando haya datos en el buffer. Finalmente 'end' se lanzará cuando no haya más datos.
+
+Para leer todo el contenido de readable, es necesario recoger chunks de varios eventos 'readable'
+
+```
+const chunks = [];
+
+readable.on('readable', () => {
+  let chunk;
+  while (null !== (chunk = readable.read())) {
+    chunks.push(chunk);
+  }
+});
+
+readable.on('end', () => {
+  const content = chunks.join('');
+});
+```
+
+Un stream readable en objectMode siempre retornará un único item desde una llamada a readable.call(size), dependiendo del tamaño del argumento.
+
+Si el readable.read() retorna un chunk de datos, un evento 'data' será emitido también.
+
+Llamar a stream.read([size]) después de 'end' retorna null. No lanza error.
+
+### readable.readable
+
+- <boolean>
+
+Es true si es seguro llamar a readable.read()
+
+### readable.readableEncoding
+
+- <null> | <string>
+
+Getter para la propiedad encoding de un stream readable. La propiedad encoding puede ser seteada usando el readable.setEncoding().
+
+### readable.readableEnd
+
+- <boolean>
+
+Es true cuando el evento 'end' es emitido.
+
+### readable.readableFlowing
+
+- <boolean>
+
+Esta propiedad refleja el estado actual de un stream readable.
+
+### readable.readableHighWaterMark
+
+- <number>
+
+Retorna el valor de highWaterMark pasado cuando se construye el readable
+
+### readable.readableLength
+
+- <number>
+
+Propiedad que contiene el número de bytes u objetos en la cola listos para ser leídos. El valor provee instrospección de datos dependiendo del estado de hightWaterMark
+
+### readable.readableObjectMode
+
+- <boolean>
+
+Getter para la propiedad objectMode de un stream readable.
+
+### readable.resume()
+
+- returns <this>
+
+El método readable.resume() causa que una pausa explícita de un readable sea resumida emitiendo 'data', por lo que el stream pasa a flowing mode.
+
+El método readable.resume() puede ser usado para consumir totalmente los datos desde un stream sin procesar los datos.
+
+```
+getReadableStreamSomehow()
+  .resume()
+  .on('end', () => {
+    console.log('Reached the end, but did not read anything.');
+  });
+```
+
+El método readable.resume() no tiene efecto si hay un listener para 'readable'
+
+### readable.setEncoding(encoding)
+
+- encoding <string> El enconding a usar
+- returns <this>
+
+El método readable.setEncoding() setea el encoding de los datos desde un readable stream.
+
+Por defecto, no hay un encoding asignado y los datos del stream serán retornados como un buffer. Setear un encoding causa que los datos del stream sean retornados como strings del encoding especificado en lugar de buffers.
+
+```
+const readable = getReadableSomehow();
+readable.setEncoding('utf8');
+readable.on('data', () => {
+  assert.equal(typeof chunk, 'string');
+  console.log('Got $d characters of string data: ', chunk.lengh);
+});
+```
+
+### readable.unpipe([destination])
