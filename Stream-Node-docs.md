@@ -349,3 +349,79 @@ Getter para la propiedad objectMode de un stream writable
 El método writable.write() escribe datos al stream, y llama el callback una vez los datos han sido totalmente manejados. Si ocurren errores, el callback puede o no ser llamado con el error como primer argumento. Para controlar los errores de escritura, añadir un listener al evento 'error'.
 
 El retorno es true si el buffer interno es menor que el highWaterMark configurado cuando el stream fue creado después de admitir el chunk. Si false es retornado, posteriores llamadas a write pararán hasta que el evento 'drain' sea emitido.
+
+## Readable streams
+
+Son abstracciones de un recurso cuyos datos serán consumidos
+
+Ejemplos de Readable streams son:
+
+- HTTP responses, en el cliente
+- HTTP requests, en el server
+- fs read streams
+- zlib streams
+- crypto streams
+- TCP sockets
+- child process stdout y stderr
+- process.stdin
+
+Todos los streams readable implementan la interfaz definida por la clase stream.Readable.
+
+## Dos modos de lectura
+
+Los readable streams tienen 2 modos de lectura: flowing y paused. Estos modos están separados del objectMode. Un readable stream puede estar en objectMode o no, sin importar si está en modo flowing o modo paused.
+
+- En modo flowing, los datos son leídos desde el SO directamente y provistos a la aplicación tan rápido sea posible usando eventos desde la interfaz EventEmitter.
+- En modo paused, el método read() ha de ser llamado esplícitamente para leer los chunks de datos desde el stream.
+
+Todos los streams readables comienzan en paused mode pero pueden ser cambiados a flowing mode de una de estas maneras:
+
+- Agregando un event handler de 'data'.
+- Llamando al método stream.resume().
+- Llamando al método stream.pipe() para enviar los datos a un stream writable.
+
+El readable puede volver a paused mode de una de estas maneras:
+
+- Si no hay pipe de destino, llamando al método stream.pause().
+- Si hay pipe de destino, eliminando todos los pipes. Múltiples pipes de destino pueden ser eliminados llamando al método stream.unpipe().
+
+Es importante recordar que un Readable no generará datos hasta que un mecanismo para consumir o ignorar estos datos sea provisto. Si el mecanismo que consume es deshabilitado o eliminado, el readable tratará de parar la generación de datos.
+
+Por razones de compatibilidad, eliminar el event handler de 'data' no pausará el stream automáticamente. También, si hay pipes de destino, llamar a stream.pause() no garantizará que el stream se mantenga en pausa una vez estos destinos hagan drain o pidan más datos.
+
+Si un readable es cambiado a flowing mode y no hay consumers disponibles para tratar los datos, éstos se perderán. Esto puede ocurrir, por ejemplo, cuando el readable.stream() es llamado sin un listener para el evento 'data', o cuando un event handler de 'data' es eliminado de un stream.
+
+Agregando un event handler de 'readable' automáticamente hará que el stream deje de fluir, y que los datos deban ser consumidos vía readable.read(). Si el event handler de 'readable' es removido, entonces el stream comenzará a fluir nuevamente si hay un event handler para 'data'.
+
+## Tres estados
+
+Los dos modos son una manera de simplificar el manejo interno del estado en un readable.
+
+Específicamente, en algún momento, cada readable está en uno de estos 3 posibles estados:
+
+- readable.readableFlowing === null
+- readable.readableFlowing === false
+- readable.readableFlowing === true
+
+Cuando readable.readableFlowing es null es que no hay mecanismos para consumir, por lo que el stream no va a generar datos. Mientras está en este estado, agregar un event handler de 'data' o llamar a readable.pipe() o a readable.resume() cambiará readable.readableFlowing a true, causando que el readable comience activamente a emitir eventos según los datos se van generando.
+
+Llamar a readable.pause(), readable.unpipe() o recibir 'backpressure' hará que readable.readableFlowing pase a false, parando temporalmente los eventos y la generación de datos. En este estado, agregar un event handler de 'data' no cambiará a true el estado.
+
+```
+const { PassThrough, Writable } = require('stream');
+const pass = new PassThrough();
+const writable = new Writable();
+
+pass.pipe(writable);
+pass.unpipe(writable);
+// readableFlowing es ahora false
+
+pass.on('data', (chunk) => { console.log(chunk.toString()); });
+pass.write('ok'); // No emitirá 'data'
+pass.resume() // Debe ser llamado para que emita 'data'
+```
+
+Mientras que readable.readableFlowing sea false, los datos pueden estar acumulándose dentro del buffer interno del stream.
+
+## Elegir un estilo de API
+
