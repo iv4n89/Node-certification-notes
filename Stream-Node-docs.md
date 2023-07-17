@@ -757,3 +757,119 @@ readable.on('data', () => {
 ```
 
 ### readable.unpipe([destination])
+
+- destination <stream.Writable> Opcional stream específico para el unpipe.
+- returns <this>
+
+El método readable.unpipe() saca un stream writable previamente unido al pipe.
+
+Si el destino no es especificado, todos los pipes serán eliminados.
+
+Si el destino es especificado, pero no hay pipe, no hará nada.
+
+```
+const fs = require('fs');
+const readable = getReadableStreamSomehow();
+const writable = fs.createWritableStream('file.txt');
+// Todos los datos del readable van al file.txt
+// pero sólo por el primer segundo.
+readable.pipe(writable);
+setTimeout(() => {
+  console.log('Stop writing to file.txt');
+  readable.unpipe(writable);
+  console.log('Manually close the file stream');
+  writable.end();
+}, 1000);
+```
+
+### readable.unshift(chunk[, encoding])
+
+- chunk <Buffer> | <Uint8Array> | <string> | <null> | <any> Chunk de datos para sacar de la cola de lectura. Para streams no operando en objectMode, un chunk puede ser Buffer, string o Uint8Array, o null. Para objectMode, chunk puede ser cualquier objeto de JavaScript.
+- encoding <string> Encoding de los string chunks, debe ser un buffer encoding válido, como 'utf8' o 'ascii'.
+
+Si un chunk es null es señal de final del stream (EOF).
+
+readable.unshift() mete un chunk de datos al buffer interno. Esto es útil en ciertas situaciones donde un stream es consumido por código que necesita desconsumir algo de datos que es sacado del recurso, por lo que los datos pueden ser pasados a otros.
+
+Stream.unshift(chunk) no puede ser llamado después de 'end', un error sería emitido.
+
+```
+// Pull off a header delimiter by \n\n.
+// Use unshift() if we get too much.
+// Call the callback with (error, header, stream).
+const { StringDecoder } = require('string_decoder');
+function parseHeader(stream, callback) {
+  stream.on('error', callback);
+  stream.on('readable', onReadable);
+  const decoder = new StringDecoder('utf8');
+  let header = '';
+  function onReadable() {
+    let chunk;
+    while (null !== (chunk = stream.read())) {
+      const str = decoder.write(chunk);
+      if (str.match(/\n\n/)) {
+        const split = str.split(/\n\n/);
+        header += split.shift();
+        const buf = Buffer.from(remaining, 'utf8');
+        stream.removeListener('error', callback);
+        // Eliminar el listener de 'readable' antes de hacer un unshift
+        stream.removeListener('readable', onReadable);
+        if (buf.length)
+          stream.unshift(buf);
+        // Ahora el cuerpo del mensaje puede ser leído desde el stream
+        callback(null, header, stream);
+      } else {
+        // Aún leyendo el header
+        header += str;
+      }
+    }
+  }
+}
+```
+
+stream.unshift(chunk) no va a terminar el proceso de lectura reseteando el estado del proceso de lectura. Esto causa resultados inesperados si readable.unshift() es llamado durante un read (ejemplo, dentro de una implementación de stream._read() en un custom stream). Siguiendo la llamada a readable.unshift() con un inmediato stream.push('') reseteará el estado apropiadamente, sin embargo es mejor evitar llamar a readable.unshift() mientras se realiza un read.
+
+### readable.wrap(stream)
+
+- stream <Stream> Un stream readable a la antigua
+- returns <this>
+
+Antes de Node.js 0.10 streams no implementaban el api completo del módulo de stream como ahora.
+
+Cuando una librería antigua de Node.js emite 'data' y tiene un método stream.pause() que es advertencia solo, el readable.wrap() puede usarse para crear un readable stream que usa el viejo stream como recurso.
+
+Raramente será necesario.
+
+```
+const { OldReader } = require('./old-api-module.js');
+const { Readable } = require('stream');
+const oreader = new OldReader();
+const myReader = new Readable().wrap(oreader);
+
+myReader.on('readable', () => {
+  myReader.read();
+});
+```
+
+### readable[Symbol.asyncIterator]()
+
+- return <AsyncIterator> para consumir el stream completo
+
+```
+const fs = require('fs');
+
+async function print(readable) {
+  readable.setEncoding('urf8');
+  let data = '';
+  for await (const chunk of readable) {
+    data += chunk;
+  }
+  console.log(data);
+}
+
+print(fs.createReadStream('file')).catch(console.error);
+```
+
+Si el loop finaliza con un break o throw, el stream será destruido. En otros términos, iterar sobre el stream consumirá el stream completo. El stream será leído en trozos iguales al hightWaterMark.
+
+## Duplex y Transform streams
