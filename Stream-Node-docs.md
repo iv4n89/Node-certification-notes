@@ -425,3 +425,207 @@ Mientras que readable.readableFlowing sea false, los datos pueden estar acumulá
 
 ## Elegir un estilo de API
 
+Usar el método readable.pipe() es recomendado por la mayoría de usuarios ya que ha sido implementado para proveer la manera más fácil de consumir datos del stream. Los desarrolladores un mayor control sobre la transferencia y generación de datos pueden usar el EventEmitter y readable.o('readable')/readable.read() o readable.pause()/readable.resume() APIs.
+
+## Class: stream.Readable
+
+### Event: 'close'
+
+El evento ```close``` es emitido cuando un stream y cualquiera de sus recursos ha sido cerrado. El evento indica que no hay más eventos para ser emitidos, por lo que no seguirá trabajándose sobre este stream.
+
+Un Readable stream va a emitir siempre ```'close'``` si ha sido creado con la opción de _emitClose_.
+
+### Event: 'data'
+
+- chunk <Buffer> |  <string> | <any> Un trozo de datos. Para streams que no están operando en objectMode, puede ser un string o un Buffer. Para streams en objectMode, el trozo puede ser cualquier objeto de JavaScript a excepción de null.
+
+El evento ```data``` es emitido siempre que el stream envíe datos a un consumer. Esto puede ocurrir en cualquier momento si el stream está en flowing mode llamando a readable.pipe(), readable.resume() o agregando un listener al evento 'data'. El evento 'data' será emitido también siempre que el readable.read() es llamado y un trozo de datos está disponible para ser retornado.
+
+Agreagar un event listener de 'data' a un stream que no ha sido explícitamente pausado hará que pase a flowing mode. Los datos serán pasados tan pronto sea posible.
+
+El callback del listener recibirá el chunk como un string si se provee un encoding por defecto usando readable.setEncoding(). En caso contrario, el chunk será un buffer.
+
+```
+const readable = getReadableStreamSomehow();
+readable.on('data', (chunk) => {
+  console.log(`Received ${chunk.length} bytes of data.`);
+});
+```
+
+### Event: 'end'
+
+El evento ```end``` es emitido cuando no hay más datos a consumir desde el stream.
+
+El evento 'end' no será emitido a menos que los datos sean completamente consumidos. Esto puede conseguirse pasando el stream a flowing mode, o llamando stream.read() repetidamente hasta que todos los datos sean consumidos.
+
+```
+const readable = getReadableStreamSomehow();
+readable.on('data', (chunk) => {
+  console.log(`Received ${chunk.length} bytes of data);
+});
+readable.on('end', () => {
+  console.log('There will be no more data.');
+});
+```
+
+### Event: 'error'
+
+- <Error>
+
+El evento ```error``` puede ser emitido por un Readable en caulquier momento. Típicamente, esto ocurre si el stream no está disponible para generar datos debido a un fallo interno, o cuando el stream trata de hacer push de un chunk de datos inválido.
+
+El callback del listener recibe un objeto Error.
+
+### Event: 'pause'
+
+El evento ```pause``` es emitido cuando stream.pause() es llamado y readableFlowing no es false.
+
+### Event: 'readable'
+
+El evento ```readable``` es emitido cuando hay datos disponibles para ser leídos desde un stream. En algunos casos, agreagar un listener para 'readable' que algo de datos sea leído en un buffer interno.
+
+```
+const readable = getReadableSomehow();
+readable.on('readable', function() {
+  // Hay algo de datos para leer
+  let data;
+
+  while(data = this.read()) {
+    console.log(data);
+  }
+});
+```
+
+El evento 'readable' también será emitido una vez que el final de los datos del stream llegue, pero antes el evento 'end' se emite.
+
+Este evento indica que el stream tiene nueva información: si nuevos datos están disponibles o si se ha llegado al final. De esta manera, readable.read() retornará los datos disponibles o null si se ha llegado al final. Por ejemplo: 
+
+```
+const fs = require('fs');
+const rr = fs.createReadStream('foo.txt');
+rr.on('readable', () => {
+  console.log(`readable: ${rr.read()}`);
+});
+rr.on('read', () => {
+  console.log('end');
+});
+```
+
+La salida de este script será:
+
+```
+$ node test.js
+readable: null
+end
+```
+
+En general, readable.pipe() y el evento 'data' son más fáciles de entender que el evento 'readable'. Sin embargo, el manejo de 'readable' mejora el rendimiento.
+
+Si ambos 'readable' y 'data' son usados al mismo tiempo, 'readable' toma precedencia en el control del flujo. Ejemplo: 'data' es emitido sólo cuando readable.read() es llamado. La propiedad readableFlowing se vuelve false. Si hay un event listener de 'data' cuando el de 'readable' es eliminado, el stream comenzará a fluir (eventos 'data' serán lanzados sin llamar a .resume()).
+
+### Event: 'resume'
+
+El evento 'resume' es emitido cuando stream.resume() es llamado y readableFlowing no es true.
+
+### readable.destroy([error])
+
+- error <Error> Error que será pasado como payload en el evento 'error'
+- returns <this>
+
+Destruye el stream. Opcionalmente emite un evento 'error', y emite 'close' ( a menos que emitClose sea false ). Después de llamarlo, el readable stream soltará cualquier recurso y subsequentes llamadas a push() serán ignoradas. No se debe sobreescribir este método. En su lugar, implementar stream._destroy().
+
+### readable.destroyed
+
+- <boolean>
+
+Es true después de que readable.destroy() haya sido llamado.
+
+### readable.isPaused()
+
+- returns <boolean>
+
+El método readable.isPaused() retorna el estado operativo actual de Readable. Es usado principalmente por readable.pipe() internamente. No suele haber razón para usarlo directamente.
+
+```
+const readable = new stream.Readable();
+
+readable.isPaused(); // false
+readable.pause();
+readable.isPaused(); // true
+readable.resume();
+readable.isPaused(); // false
+```
+
+### readable.pause()
+
+- returns <this>
+
+El método readable.pause() causará que el stream en flowing mode pare de emitir 'data', pasando a paused mode. Cualquier dato que tenga disponible quedará a la espera en el buffer interno.
+
+```
+const readable = getReadableSomehow();
+readable.on('data', (chunk) => {
+  console.log(`Received ${chunk.length} bytes of data.`);
+  readable.pause();
+  console.log('There will be no additional data for 1 second');
+  setTimeOut(() => {
+    console.log('Now data will start flowing again');
+    readable.resume();
+  }, 1000);
+});
+```
+
+El método readable.pause() no tiene efecto si hay un event listener de 'readable'
+
+### readable.pipe(destination([, options])
+
+- destination <stream.Writable> El destino para escribir datos
+- options <Object> Pipe options
+  - end <boolean> Acaba el writer cuando acaba el reader. Por defecto: true.
+- returns <stream.Writable> El destino, permitiendo encadenar si es un duplex o transform stream.
+
+El método readable.pipe() conecta un stream writable, causando que pase automáticamente a flowing mode y pasando todos los datos al writable conectado. El flujo de datos será manejado automáticamente con lo que el writable destino no será sobrepasado con un readable que vaya más rápido.
+
+```
+const fs = require('fs');
+const readable = getReadableStreamSomehow();
+const writable = fs.createWriteStream('file.txt');
+// Todos los datos del readable van a file.txt
+readable.pipe(writable);
+```
+
+Se pueden conectar varios writable streams a un único readable stream
+
+El readable.pipe() retorna una referencia al stream de destino, haciendo posible encadenar pipes de stream.
+
+```
+const fs = require('fs');
+const r = fs.createReadStream('file.txt');
+const z = zlib.createGzip();
+const w = fs.createWriteStream('file.txt.gz');
+r.pipe(z).pipe(w);
+```
+
+Por defecto, stream.end() es llamado en el writable destino cuando el recuros readable emite 'end', por lo que el destino no puede ser escrito más. Para deshabilitar este comportamiento la opción end puede ser pasada como false, causando que el stream destino quede abierto.
+
+```
+reader.pipe(writer, { end: false });
+reader.on('end', () => {
+  writer.end('Goodbye\n');
+});
+```
+
+Una advertencia importante es que si el readable stream emite un error durante el proceso, el writable destino no se cierra automáticamente. Si un error ocurre será necesario un cierre manual de cada stream para prevenir memory leaks.
+
+Los process.stderr y process.stdout (writables) nunca son cerrados a menos que Node.js pare, sin importar esta opción.
+
+### readable.read([read])
+
+- size <number> Argumento opcional que especifica la cantidad de datos a leer
+- returns <string> | <Buffer> | <null> | <any>
+
+El método readable.read() lanza algo de datos fuera del internal buffer y lo retorna. Si no hay datos disponibles para leer, se retorna null. Por defecto, los datos serán retornados como un buffer a menos que un encoding sea especificado usando readable.setEncoding() o el stream opere en objectMode.
+
+El argumento opcional size especifica el número de bytes a leer. Si la cantidad de bytes a leer no está disponible, null será retornado a menos que el stream haya finalizado, en cuyo caso todos los datos restantes del internal buffer serán retornados.
+
+Si size no es especificado, todos los datos contenidos
