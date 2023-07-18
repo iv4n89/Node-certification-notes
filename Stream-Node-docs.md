@@ -1060,3 +1060,38 @@ Cuando extendemos streams, tener presente que las opciones que el usuario se pue
 
 Las nuevas clases de streams entonces implementan uno o más métodos específicos, dependiendo del tipo de stream a ser creado, como se detalla:
 
+<table>
+  <thead>
+    <tr>
+      <th><b>Use-Case</b></th>
+      <th><b>Class</b></th>
+      <th><b>Method(s) to implement</b></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Sólo lectura</td>
+      <td>Readable</td>
+      <td>_read()</td>
+    </tr>
+    <tr>
+      <td>Sólo escritura</td>
+      <td>Writable</td>
+      <td>_write(), _writev(), _final()</td>
+    </tr>
+    <tr>
+      <td>Lectura y escritura</td>
+      <td>Duplex</td>
+      <td>_read(), _write(), _writev(), _final()</td>
+    </tr>
+    <tr>
+      <td>Operar y escribir datos, entonces leer el resultado</td>
+      <td>Transform</td>
+      <td>_transform(), _flush(), _final()</td>
+    </tr>
+  </tbody>
+</table>
+
+La implementación de un stream no debe nunca llamar a métodos públicos que son para el uso de consumidores. Hacer esto puede llevar a efectos secundarios mientras se consume un stream.
+
+Evitar sobreescrir métodos públicos como write(), end(), uncork(), read() y destroy(), o emitir internamente eventos como 'error', 'data', 'end', 'finish' y 'close' desde .emit(). Hacer esto puede romper el actual o futuros streams dependiendo del comportamiento y/o compatibilidad con otros streams, streams utils y expectativas de usuarios
