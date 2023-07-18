@@ -1360,3 +1360,435 @@ El argumento size es advirsorio.l Para implementaciones de read() donde una oper
 El método readable._read() es precedido con un _ ya que es interno.
 
 ### readable._destroy(err, callback)
+
+- err <Error> Un posible error
+- callback <Function> Una función callback que toma un argumento opcional de error
+
+Es llamado por readable.destroy(). Puede ser sobreescrito en la clase hija, no debe ser llamado directamente.
+
+### readable.push(chunk[, encoding])
+
+- chunk <Buffer> | <Uint8Array> | <string> | <null> | <any> Trozo de datos a enviar a la cola de lectura. Para streams que no operan en objectMode, chunk debe ser Buffer, string o Uint8Array. Si está en objectMode, será cualquier valor de JavaScript.
+- encoding <string> Encoding de los chunks string. Debe ser un encoding válido de Buffer, como 'utf8' o 'ascii'.
+- returns <boolean> true si un chunk adicional será empujado, false si no.
+
+Cuando un chunk es un Buffer, Uint8Array o string, el chunk de datos será agregado a la cola interna de usuarios del stream para ser consumido. Pasando chunk como null será señal de final del stream (EOF), tras lo que no se podrá escribir más datos.
+
+Cuando un readable opera en paused mode, los datos agregados con readable.push() puede ser leido llamando a readable.read() cuando el evento 'readable' es emitido.
+
+Cuando Readable opera en flowing mode, los datos agregados con readable.push() serán entregados emitiendo el evento 'data'.
+
+readable.push() es diseñado para ser tan flexible como pueda. Por ejemplo, cuando se encapsula un recurso de bajo nivel que provee algún mecanismo de pause/resume, y un data callback, el low-level resource puede ser encapsulado en una instancia custom de readable.
+
+```
+// '_source' es un objeto con readStop() y readStart()
+// y un 'ondata' miembro que es llamado cuando tiene datos
+// y 'onend' miembro que es llamado cuando los datos se acaban
+
+class SourceWrapper extends Readable {
+  constructor(options) {
+    super(options);
+
+    this._source = getLowLevelSourceObject();
+    // Cada vez que hay datos, lo envia al internal buffer
+    this._source.ondata = (chunk) => {
+      // Si push() retorna false, para de leer el recurso
+      if (!this.push(chunk)) {
+        this._source.readStop();
+      };
+
+    this._source.onend = () => {
+      this.push(null);
+    };
+  }
+
+  // _read() será llamado cuando el stream quiere enviar más datos
+  // El argumento size será ignorado en este caso
+  _read(size) {
+    this._source.readStart();
+  }
+}
+```
+
+readable.push() es usado para empujar contenido al internal buffer. Puede ser realizado por readable._read().
+
+Para streams no operando en objectMode, si el parámetro chunk de readable.push() es undefined será tratado como un string vacío o buffer.
+
+## Errores en la lectura
+
+Errores pueden ocurrir durante el proceso de readable._read() que pueden ser propagados por readable.destroy(err). Enviando un Error desde dentro de readable._read() o manualmente emitir 'error' resulta en un comportamiento indefinido.
+
+```
+const { Readable } = require('stream');
+
+const myReadable = new Readable({
+  read(size) {
+    const err = checkSomeErrorCondition();
+    if (err) {
+      this.destroy(err);
+    } else {
+      // Hacer algo
+    }
+  }
+});
+```
+
+## Un ejemplo de stream contandor
+
+```
+const { Readable } = require('stream');
+
+class Counter extends Readable {
+  constructor(opt) {
+    super(opt);
+    this._max = 1000000;
+    this._index = 1;
+  }
+
+  _read() {
+    const i = this._index++;
+    if (i > this._max) {
+      this.push(null);
+    } else {
+      const str = String(i);
+      const buf = Buffer.from(str, 'ascii');
+      this.push(buf);
+    }
+  }
+}
+```
+
+## Implementar un stream Duplex
+
+Un stream duplex implementa tanto Readable como Writable, como en TCP sockets.
+
+Ya que JavaScript no soporta la herencia múltiple, stream.Duplex ha de ser extendida para abarcar ambos.
+
+El prototipo de duplex hereda de Readable y parasita Writable, pero instanceof funciona bien con ambas clases debido a que sobreescribe Symbol.hasInstance en Writable.
+
+Custom duplex puede llamar a new stream.Duplex([options]) constructor e implementar ambos readable._read() y writable._write().
+
+### new stream.Duplex(options)
+
+- options Pasado tanto para writable como para readable
+  - allowHalfOpen <boolean> Si es false el stream automáticamente cerrará el writable cuando el readable termine. Default true.
+  - readable <boolean> Setea si el stream debe ser readable. Default true
+  - writable <boolean> Setea si el stream debe ser writable. Default true
+  - readableObjectMode <boolean> Setea objectMode para readable. No tiene efecto si objectMode es true. Default false.
+  - writableObjectMode <boolean> Setea objectMode para writable. No tiene efecto si objectMode es true. Default false.
+  - readableHighWaterMark <number> Setea highWaterMark para readable. No tiene efecto si highWaterMark es provisto.
+  - writableHighWaterMark <number> Setea highWaterMark para writable. No tiene efecto si highWaterMark es provisto.
+
+```
+const { Duplex } = require('stream');
+
+class MuDuplex extends Duplex {
+  constructor(options) {
+    super(options);
+    // ...
+  }
+}
+```
+
+O pre-ES6 constructors
+
+```
+const { Duplex } = require('stream');
+cosnt util = require('util');
+
+function MyDuplex(options) {
+  if (!(this instanceof MyDuplex)) {
+    return new MyDuplex(options);
+  }
+  Duplex.call(this, options);
+}
+util.inherits(MyDuplex, Duplex);
+```
+
+O constructor simplificado
+
+```
+const { Duplex } = require('stream');
+
+const myDuplex = new Duplex({
+  read(size) {
+    // ...
+  }
+  write(chunk, encoding, callback) {
+    // ...
+  }
+});
+```
+
+## Un ejemplo de stream duplex
+
+```
+const { Duplex } = require('stream');
+const kSource = Symbol('source');
+
+class MyDuplex extends Duplex {
+  constructor(source, options) {
+    super(options);
+    this[kSource] = source;
+  }
+
+  _write(chunk, encoding, callback) {
+    if (Buffer.isBuffer(chunk)) {
+      chunk = chunk.toString();
+    }
+    this[kSource].writeSomeData(chunk);
+    callback();
+  }
+
+  _read(size) {
+    this[kSource].fetchSomeData(size, (data, encoding) => {
+      this.push(Buffer.from(data, encoding));
+    });
+  }
+}
+```
+
+Lo más importante en un duplex es que los lados readable y writable operen independientemente aunque coexistan en un único objeto.
+
+## Object mode en stream duplex
+
+En duplex streams el objectMode puede ser exclusivo de readable o writable usando readableObjectMode o writableObjectMode.
+
+```
+const { Transform } = require('stream');
+
+// Todos los streams transform son también duplex
+const myTransform = new Transform({
+  writableObjectMode: true,
+  transform(chunk, encoding, callback) {
+    // Coaccionar el trozo si es necesario
+    chunk |= 0;
+
+    // Transformar el chunk en algo más
+    const data = chunk.toString(16);
+
+    // Empujar los datos a la cola de lectura
+    callback(null, '0'.repeat(data.length % 2) + data);
+  }
+});
+
+myTransform.setEncoding('ascii');
+myTransform.on('data', (chunk) => console.log(chunk));
+
+myTransform.write(1); // 01
+myTransform.write(10); //0a
+myTransform.write(100); //64
+```
+
+## Implementar un stream transform
+
+Un stream transform es un duplex donde el output es una transformación del input. Ejemplos son zlib o crypto streams.
+
+No hay requisitos de que el output deba ser del mismo tamaño que el input, el mismo número de chunks o llegar al mismo tiempo. Por ejemplo, Hash siempre va a tener un chunk de salida que sale cuando el input acaba.
+
+La clase stream.Transform extiende para implementar Transform stream.
+
+Hereda el prototype de duplex e implementa su versión de _write() y _read(). Custom transform implementations deben implementar _transform() y pueden implementar _flush().
+
+Si la salida de Readable no es consumida puede causar que writable se pause.
+
+### new stream.Transform([options])
+
+- options <Object> Pasado tanto para writable como para readable.
+  - transform <Function> Implementación de stream._transform()
+  - flush <Function> Implementación de stream._flush()
+
+```
+const { Transform } = require('stream');
+
+class MyTransform extends Transform {
+  constructor (options) {
+    super(options);
+    // ...
+  }
+}
+```
+
+O pre-ES6
+
+```
+const { Transform } = require('stream');
+const util = require('util');
+
+function MyTransform(options) {
+  if (!(this instanceof MyTransform)) {
+    return new MyTransform(options);
+  }
+  Transform.call(this, options);
+}
+util.inherits(MyTransform, Transform);
+```
+
+O constructor simplificado
+
+```
+const { Transform } = require('stream');
+
+const MyTransform = new Transform({
+  transform(chunk, encoding, callback) {
+    // ...
+  }
+});
+```
+
+### Events 'finish' y 'end'
+
+Los eventos 'finish' y 'end' son de stream.Writable y stream.Readable respectivamente. El evento 'finish' es emitido después de que stream.end() sea llamado y todos los chunks han sido procesados por _transform(). El evento 'end' es emitido después de que todos los datos hayan sido emitidos, que ocurre cuando el callback en _flush() ha sido llamado.
+
+### transform._flush(callback)
+
+- callback <Function> Una función callback a ser llamada cuando los datos restantes se han vacíado.
+
+Esta función NO DEBE ser llamada directamente. La llama internamente métodos de readable.
+
+En algunos casos, una operación de transform puede necesitar emitir un bit de datos adicional al final del stream. Por ejemplo, una compresión de zlib almacenará una cantidad estado interno para comprimir el output. Cuando el stream acaba, estos datos adicionales deben ser vaciados para completar la compresión.
+
+Custom implementaciones de transform pueden implementar _flush(). Será llamado cuando no hay más datos a consumir, pero antes del evento 'end'.
+
+Dentro de _flush(), transform.push() puede ser llamado 0 o más veces. El callback debe ser llamado cuando la operación de vaciado se ha completado.
+
+### transform._transform(chunk, encoding, callback)
+
+- chunk <Buffer> | <string> | <any> El Buffer a ser transformado, convertido desde el string pasado a stream.write(). Si la opción decodeStrings es false o el stream opera en objectMode, el chunk no será convertido y será pasado igualmente a stream.write().
+- encoding <string> Si el chunk es un string, entonces esto es su encoding. Si el chunk es un buffer, esto debe ser el valor especial 'buffer'. Se ignora en este caso.
+- callback <Function> Una función de callback llamada después del procesado del chunk.
+
+Esta función NO DEBE ser llamada directamente. Será llamada internamente por métodos de Readable.
+
+Se debe proveer implementación de _transform() para aceptar input y producir output. Maneja los bytes siendo escritos, computa un output y pasa ese output hacia la parte readable usando transform.push().
+
+transform.push() puede ser llamado 0 o más veces para generar outputs de un único chunk, dependiendo de cuánto ha de ser el output resultante del chunk.
+
+Es posible que no se genere output de chunks en el input.
+
+El callback debe ser llamado sólo cuando el chunk actual sea completamente consumido. El primer argumento del callback debe ser un Error si un error ocurre, o null si fue bien. Si un segundo argumento es pasado, será enviado a transform.push(). En otraas palabras, las dos líneas siguientes son equivalentes:
+
+```
+transform.prototype._transform = function(data, encoding, callback) {
+  this.push(data);
+  callback();
+}
+
+transform.prototype._transform = function(data, encoding, callback) {
+  callback(null, data);
+}
+```
+
+_transform() se llama en paralelo. Streams impementan mecanismos de cola y para recibir el siguiente chunk deben ser llamados, síncrona o asíncronamente.
+
+## Class: stream.PassThrough
+
+stream.PassThrough es una implementación trivial de Transform que simplemente pasa el input hacia el output. Su principal uso es en ejemplos o testing, pero hay algunos casos en los que PassThrough puede ser útil, como construir nuevos tipos de streams.
+
+## Notas adicionales
+
+### Compatibilidad de streams con generadores asíncronos e iteradores asíncronos
+
+Dentro del soporte de generadores e iteradores en JavaScript, generadores asíncronos son un first-class language-level stream construct.
+
+### Consumir readable streams con async iterators
+
+```
+(async function() {
+  for await (const chunk of readable) {
+    console.log(chunk);
+  }
+})();
+```
+
+### Crear readable streams con generadores asíncronos
+
+```
+const { Readable } = require('stream');
+
+async function * generate() {
+  yield 'a';
+  yield 'b';
+  yield 'b';
+  yield 'c';
+}
+
+const readable = Readable.from(generate());
+
+readable.on('data', (chunk) => {
+  console.log(chunk);
+});
+```
+
+### Canalizar un stream writable desde iteradores asíncronos
+
+```
+const { once } = require('events');
+const finished = util.promisify(stream.finished);
+
+const writable = fs.createWriteStream('./file');
+
+function drain(writable) {
+  if (writable.destroyed) {
+    return Promise.rejected(new Error('premature close'));
+  }
+
+  return Promise.race([
+    once(writable, 'drain'),
+    once(wriatable, 'close')
+      .then(() => Promise.reject(new Error('premature close')))
+  ]);
+}
+
+async function pump(iterable, writable) {
+  for await (const chunk of iterable) {
+    if (!writable.write(chunk)) {
+      await drain(writable);
+    }
+  }
+  writable.end();
+}
+
+(async function() {
+  await Promise.all([
+    pump(iterable, writable),
+    finished(writable)
+  ]);
+})();
+```
+
+Alternativamente un readable stream puede ser encapsulado con Readable.from() y piped via pipe().
+
+```
+const finished = util.promisify(stream.finished);
+
+const writable = fs.createWriteStream('./file');
+
+(async function() {
+  const readable = Readable.from(iterable);
+  readable.pipe(writable);
+  await finished(writable);
+})();
+```
+
+O usando stream.pipeline()
+
+```
+const pipeline = util.promisify(stream.pipeline);
+
+const writable = fs.createWritableStream('./file');
+
+(async function() {
+  const readable = Readable.from(iterable);
+  await pipeline(readable, writable);
+})();
+```
+
+## Compatibilidad con versiones antiguas de Node.js
+
+Tras Node.js 0.10 la iterfaz de readable se simplificó, pero también pasó a ser menos poderosa y útil.
+
+- En lugar de esperar llamadas de read(), los eventos 'data' serán emitidos inmediatamente. Las aplicaciones que necesiten mejorar su rendimiento podrían necesitar algo de trabajo para decidir cómo tratar los datos en los que requieren ser guardados los datos leídos en buffers con lo que los datos no se pierdan.
+- pause() era advirtorio, ahora es garantizado. Esto significa que era necesario estar preparado para recibir 'data' incluso cuando  el stream estaba en pause.
+
+
