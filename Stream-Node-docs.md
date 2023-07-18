@@ -873,3 +873,190 @@ print(fs.createReadStream('file')).catch(console.error);
 Si el loop finaliza con un break o throw, el stream será destruido. En otros términos, iterar sobre el stream consumirá el stream completo. El stream será leído en trozos iguales al hightWaterMark.
 
 ## Duplex y Transform streams
+
+### Class: stream.Duplex
+
+Duplex streams son los que implementan tanto la interfaz Readable como Writable
+
+Ejemplos:
+
+- TCP sockets
+- zlib streams
+- crypto streams
+
+### Class: stream.Transform
+
+Transform streams son duplex streams cuya salida está relacionada de alguna manera con la entrada. Como los duplex streams, los transform streams implementan ambas interfaces.
+
+Ejemplos:
+
+- zlib streams
+- crypto streams
+
+### transform.destroy([error])
+
+- error <Error>
+- return <this>
+
+Destruye el stream, opcionalmente emite un evento de 'error'. Después de esta llamada, el stream transform suelta cualquier recurso interno. No se debe sobreescribir este método, en su lugar implementar readable._destroy(). La implementación por defecto de _destroy() para Transform también emite 'close' a menos que emitClose sea false.
+
+## stream.finished(stream[, options], callback)
+
+- stream <Stream> Un readable y/o writable stream
+- options <Object>
+  - error <boolean> Si es false, llamar a emit('error', err) no es tratado como finalizado. Default: true
+  - readable <boolean> Cuando es false, el callback será llamado cuando el stream acaba incluso cuando el stream aún pueda ser leíble. Default: true.
+  - writable <boolean> Cuando es false, el callback será llamado cuando el stream acaba incluso cuando el stream aún pueda ser escribible. Default: true.
+- callback <Function> Una función de callback que toma un argumento opcional de error.
+- returns <Function> Una función de limpieza que remueve todos los listeners registrados.
+
+Una función para ser notificado cuando un stream ya no es legible, escribible o tiene un error un cierre prematuro.
+
+```
+const { finished } = require('stream');
+
+const rs = fs.createReadStream('archive.tar');
+
+finished(rs, (err) => {
+  if (err) {
+    console.error('Stream failed', err);
+  } else {
+    console.log('Stream is done already');
+  }
+});
+
+re.resume(); // Drain the stream
+```
+
+Es especialmente útil para el manejo de errores en escenarios donde el stream es destruído prematuramente (como un http request abortado), y no emite 'end' o 'finish'.
+
+El api de finished se puede pasar a promesa:
+
+```
+const finished = util.promisify(stream.finished);
+
+const rs = fs.createReadStream('archive.tar');
+
+async function run() {
+  await finished(rs);
+  console.log('Stream is done already);
+}
+
+run().catch(console.error);
+rs.resume(); // Drain the stream
+```
+
+stream.finished() deja varios event listeners ('error', 'end', 'finish' y 'close') después del callback. La razón de esto es que ante un evento de 'error' no cause un crash inesperado. Se puede realizar limpieza con la función retornada.
+
+```
+const cleanup = finished(rs, (error) => {
+  cleanup();
+  //...
+});
+```
+
+## stream.pipeline(...streams, callback)
+
+- ...streams <Stream> Dos o más streams para hacer pipe
+- callback <Function> Llamada cuando el pipeline es finalizado
+  - err <Error>
+
+Un método modular para hacer pipe entre streams gestionando errores y limpiando y proveyendo un callback cuando el pipeline se completa.
+
+```
+const { pipeline } = require('stream');
+const fs = require('fs');
+const zlib = require('zlib');
+
+// Usar el api de pipeline para hacer pipe con una serie de streams
+// y ser notificado cuando el pipeline finaliza
+
+// Un pipelin para hacer gzip a un fichero potencialmente grande eficientemente:
+
+pipeline(
+  fs.createReadStream('archive.tar'),
+  zlib.createGzip(),
+  fs.createWriteStream('archive.tar.gz'),
+  err => {
+    if (err) {
+      console.error('Pipeline failed', err);
+    } else {
+      console.log('Pipeline succeeded.');
+  	}
+  }
+);
+```
+
+El api de pipeline se puede volver promesa
+
+```
+const pipeline = util.promisify(stream.pipeline);
+
+async function run() {
+  await pipeline(
+    fs.createReadStream('archive.tar'),
+    zlib.createGzip(),
+    fs.createWriteStream('archive.tar.gz')
+  );
+  console.log('Pipeline succeeded');
+}
+
+run().catch(console.error);
+```
+
+stream.pipeline() llamará a strea.destroy(err) en cualquier excepción del stream:
+- Readable que ha emitido 'end' o 'close'
+- Writable que ha emitido 'finish' o 'close'
+
+stream.pipeline() deja algunos event listeners después del callback. En el caso de reusar los streams tras un error, esto puede causar errores en los event listeners.
+
+## stream.Readable.from(iterable, [options])
+
+- iterable <Iterable> Objeto que implementa el protocolo iterable Symbol.asyncIterable o Symbol.iterator. Emite un evento 'error' si un valor null es pasado.
+- options <Object> Opciones provistas para un nuevo stream.Readable([options]). Por defecto, Readable.from() setea options.objectMode a true, a menos que explícitamente se ponga a false.
+- returns <streams.Readable>
+
+Un método de utilidad para crear streams readable desde iterables
+
+```
+const { Readable } = require('stream');
+
+async function * generate() {
+  yield 'hello';
+  yield 'streams';
+}
+
+const readable = Readable.from(generate());
+
+readable.on('data', chunk => {
+  console.log(chunk);
+});
+```
+
+Llamar a Readable.from(string) o Readable.from(buffer) no hará que strings o buffer sean iterados para hacer match con la semántica de otros streams por razones de rendimiento.
+
+## API para stream implementers
+
+El módulo de stream API ha sido diseñado para ahcer posible su implementación fácil usando la herencia de prototipo de JavaScript.
+
+Primero, un stream developer debe declarar una nueva clase de JavaScript que extienda uno de los streams básicos (writable, readable, duplex o transform), asegurándose de llamar al constructor padre apropiado.
+
+```
+const { Writable } = require('stream');
+
+class MyWritable extends Writable {
+  constructor({ highWaterMark, ...options }) {
+    super({
+      highWaterMark,
+      autoDestroy: true,
+      emitClose: true
+    });
+    // ...
+  }
+}
+```
+
+Cuando extendemos streams, tener presente que las opciones que el usuario se pueden y deben proveer antes de llegar al constructor base. Por ejemplo, si la implementación asume la responsabilidad del autoDestroy y emitClose, no permitir a los usuarios sobreescribirlos.
+
+Las nuevas clases de streams entonces implementan uno o más métodos específicos, dependiendo del tipo de stream a ser creado, como se detalla:
+
