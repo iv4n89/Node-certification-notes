@@ -1095,3 +1095,87 @@ Las nuevas clases de streams entonces implementan uno o más métodos específic
 La implementación de un stream no debe nunca llamar a métodos públicos que son para el uso de consumidores. Hacer esto puede llevar a efectos secundarios mientras se consume un stream.
 
 Evitar sobreescrir métodos públicos como write(), end(), uncork(), read() y destroy(), o emitir internamente eventos como 'error', 'data', 'end', 'finish' y 'close' desde .emit(). Hacer esto puede romper el actual o futuros streams dependiendo del comportamiento y/o compatibilidad con otros streams, streams utils y expectativas de usuarios
+
+## Construcción simplificada
+
+Para casos simples es posible construir un stream sin dependencias o herencia. Esto puede ser realizado directamente creando instancias de stream.Writable, stream.Readable, stream.Duplex o stream.Transform y pasando el método apropiado como opciones del constructor.
+
+```
+const { Writable } = require('stream');
+
+const myWritable = new Writable({
+  write(chunk, encoding, callback) {
+    // ...
+  }
+});
+```
+
+## Implementar un writable stream
+
+La clase stream.writable debe ser extendida para implementar un writable stream.
+
+Custom writable streams deben llamar al constructor stream.Writable([options]) e implementar el writable._write() y/o writable._writev().
+
+### new stream.Writable([options])
+
+- options <Object>
+  - highWaterMark <number> Nivel de buffer cuando stream.write() retorna false. Default 165384 (16kb) o 16 para objectMode.
+  - decodeStrings <boolean> Codificar o no los strings pasados por stream.write() a buffers (con el encoding facilitado) antes de pasarlo a stream._write(). Otros tipos de datos no son convertidos (ejemplo, los buffers no son decodificados en strings). Setearlo a false prevendrá que los strings sean convertidos. Default true.
+  - defaultEncoding <string> El encoding por defecto usado cuando no se pasa un encoding como argumento a stream.write(). Default 'utf8'
+  - objectMode <boolean> Indica si stream.write(cualquierObjeto) será válido. Cuando se setea, es posible escribir objetos si son soportados por la implementación. Default false.
+  - emitClose <boolean> Si el stream debe emitir 'close' después de haber sido destruido. Default true.
+  - write <Function> Implementación del método stream._write().
+  - writev <Function> Implementación del método stream._writev().
+  - destroy <Function> Implementación del método stream._destroy().
+  - final <Function> Implementación del método steram._final().
+  - autoDestroy <boolean> Si el stream debe llamar automáticamente a .destroy() tras el final. Default false.
+
+  ```
+  const { Writable } = require('stream');
+
+  class myWritable extends Writable {
+    constructor (options) {
+      // Llama al constructor de stream.Writable().
+      super(options);
+      // ...
+    }
+  }
+  ```
+
+  O, usando pre-ES6 constructors:
+
+  ```
+  const { Writable } = require('stream');
+  const uril = require('util');
+
+  function MyWritable(options) {
+    if (!(this instanceof MyWritable)) {
+      return new MyWritable(options);
+    }
+    Writable.call(this, options);
+  }
+
+  util.inherits(MyWritable, Writable);
+  ```
+
+  O usando el constructor simplificado:
+
+  ```
+  const { Writable } = require('stream');
+
+  const myWritable = new Writable({
+    write(chunk, encoding, callback) {
+      // ...
+    },
+    writev(chunks, callback) {
+      // ...
+    }
+  });
+  ```
+
+  ### writable._write(chunk, encoding, callback)
+
+  - chunk <Buffer> | <string> | <any> El Buffer a ser escrito, convertido a desde string pasado a stream.write(). Si la opción decodeStrings es false o el stream opera en objectMode, el chunk no será convertido y será pasado a stream.write().
+  - encoding <string> Si el chunk es un string, entonces encoding es el character encoding de este string. Si el chunk es un Buffer o está operando en objectMode, encoding será ignorado.
+  - callback <Function> Llamar a esta función (opcionalmente con un argumento de error) cuando se complete el procesado de un chunk.
+ 
