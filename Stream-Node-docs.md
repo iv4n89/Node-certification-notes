@@ -1178,4 +1178,185 @@ Custom writable streams deben llamar al constructor stream.Writable([options]) e
   - chunk <Buffer> | <string> | <any> El Buffer a ser escrito, convertido a desde string pasado a stream.write(). Si la opción decodeStrings es false o el stream opera en objectMode, el chunk no será convertido y será pasado a stream.write().
   - encoding <string> Si el chunk es un string, entonces encoding es el character encoding de este string. Si el chunk es un Buffer o está operando en objectMode, encoding será ignorado.
   - callback <Function> Llamar a esta función (opcionalmente con un argumento de error) cuando se complete el procesado de un chunk.
- 
+
+Todas las implementaciones de writable debenn proveer un writable._write() y/o writable._writev() para enviar datos al recurso.
+
+Transform streams proveen su propia implementación del writable._write().
+
+Esta función NO DEBE ser llamada por aplicaciones de código directamente. Se debe implementar por clases hijas y ser llamado internamente.
+
+El método callback debe ser llamado como señal de que una escritura se completó con éxito o falló. El primer argumento pasado al callback debe ser el objeto de Error si la llamada falla o null si la escritura es correcta.
+
+Todas las llamadas a writable.write() que ocurren entre que writable._write() es llamado y el callback es llamado causará que los datos escritos sean almacenados. Cuando el callback es invocado, el stream debe emitir un evento 'drain'. Si la implementación del stream es capaz de procesar múltiples chunks de datos de una vez, el writable._writev() debe ser implementado.
+
+Si decodeStrings se setea a false en el constructor, el chunk permanecerá como el mismo objeto que es pasado a .write(), y debe ser un string. Esto es para soportar implementaciones que tienen un manejo optimizado de ciertos string data encoding. En este caso, el argumento encoding indicará el character encoding del string. De otra manera, el argumento encoding puede ser ignorado.
+
+El método writable._write() es precedido con una barra baja ya que interno a la clase que lo define, y nunca debe ser llamado por programas de usuarios.
+
+### writable._writev(chunks, callback)
+
+- chunks <Object[]> Los chunks a ser escritos. Cada chunk tiene el formato: { chunk: ..., encoding: ... }.
+- callback <Function> Será invocado al finalizar el procesamiento de los chunks
+
+Esta función NO DEBE ser llamada por la aplicación directamente. Debe ser implementada por clases hijas y llamada internamente.
+
+El método writable._writev() debe ser implementado además de o alternativamente a writable._write() en implementaciones capaces de procesar varios chunks a la vez. 
+
+El método writable._writev() es precedido con una barra baja ya que es un método interno de la clase y no debe ser llamado directamente por el usuario.
+
+### writable._destroy(err, callback)
+
+- err <Error> Un posible error
+- callback <Function> Una función de callback que toma un argumento opcional de error
+
+El método _destroy() es llamado por writable.destroy(). Puede ser sobreescrito por una clase hija y no debe ser llamada directamente
+
+### writable._final(callback)
+
+- callback <Function> Llamar a esta función (opcionalmente con un argumento de error) cuando se finaliza la escritura de los datos restantes.
+
+El método _final() no debe ser llamado directamente. Debe ser implementado por la clases hijas.
+
+Esta función opcional será llamada antes del cierre del stream, dejando el evento 'finish' hasta después de la llamada al callback. Es útil para cerrar recursos o escribir datos en buffer antes del cierre del stream
+
+## Errores durante la escritura
+
+Pueden ocurrir errores durante el procesado de writabe._write(), writable._writev() y writable._final() que pueden propagarse invocando el callback y pasando el error como primer argumento. Lanzando un Error desde dentro de estos métodos o manualmente emitir 'error' provoca un comportamiento indefinido.
+
+Si un readable conecta con un writable cuando writable emite error, el readable se desconectará.
+
+```
+const { Writable } = require('stream');
+
+const myWritable = new Writable({
+  write(chunk, encoding, callback) {
+    if (chunk.toString().indexOf('a') => 0) {
+      callback(new Error('chunk is invalid'));
+    } else {
+      callback();
+    }
+  }
+});
+```
+
+## Un ejemplo de writable stream
+
+```
+const { Writable } = require('stream');
+
+class MyWritable extends Writable {
+  _write(chunk, encoding, callback) {
+    if (chunk.toString().indexOf('a') >= 0) {
+      callback(new Error('chunk is invalid');
+    } else {
+      callback();
+    }
+  }
+}
+```
+
+## Decodificando buffers en un writable stream
+
+Decodificar buffers es una tarea común, por ejemplo, cuando usamos transformers cuyo input es un string. 
+
+```
+const { Writable } = require('stream');
+const { StringDecoder } = require('string_decoder');
+
+class StringWritable extends Writable {
+  cosntructor(options) {
+    super(options);
+    this._decoder = new StringDecoder(options && options.defaultEncoding);
+    this.data = '';
+  }
+  _write(chunk, encoding, callback) {
+    if (encoding === 'buffer') {
+      chunk = this._decoder.write(chunk);
+    }
+    this.data += chunk;
+    callback();
+  }
+  _final(callback) {
+    this.data += this._decoder.end();
+    callback();
+  }
+}
+
+const euro = [[0xE2, 0x82], [0xAC]].map(Buffer.from);
+const w = new StringWritable();
+
+w.write('currency: ');
+w.write(euro[0]);
+w.end(euro[1]);
+
+console.log(w.data); // concurrency: €
+```
+
+## Implementar un readable stream
+
+- options <Object>
+  - highWaterMark <number> El máximo de bytes a guardar en el internal buffer antes de dejar de leer del recurso. Default: 16384 (16kb) o 16 en objectMode.
+  - encoding <string> Si se especifica, los buffers serán decodificados a strings usando el encoding especificado. Default null.
+  - objectMode <boolean> Está o no en objectMode. stream.read(n) retornará un único valor en lugar de Buffer de tamaño n. Default false.
+  - emitClose <boolean> Debe o no lanzar el 'close' después de ser destruido. Default true.
+  - read <Function> Implementación de stream._read()
+  - destroy <Function> Implementación de stream._destroy()
+  - autoDestroy <boolean> El stream debe llamar automáticamente a .destroy() después de finalizar. Por defecto false.
+
+```
+const { Readable } = require('stream');
+
+class MyReadable extends Readable {
+  constructor (options) {
+    // Llama al constructor de Readable(options)
+    super(options)
+    // ...
+  }
+}
+```
+
+O usando pre-ES6 constructors
+
+```
+const { Readable } = require('stream');
+const util = require('util');
+
+function MyReadable(options) {
+  if (!(this instanceof MyReadable)) {
+    return new MyReadable(options);
+  }
+  Readable.call(this, options);
+}
+
+util.inherits(MyReadable, Readable);
+```
+
+O usando el constructor simplificado
+
+```
+const { Readable } = require('stream');
+
+const myReadable = new Readable({
+  read(size) {
+    // ...
+  }
+});
+```
+
+### readable._read(size)
+
+- size <number> Número de bytes a leer asíncronamente
+
+Esta función NO DEBE ser llamada directamente.
+
+Todas las implementaciones de stream deben tener una implementación de readable._read() para obtener los datos desde el recurso.
+
+Cuando readable._read() es llamado, si los datos están disponibles en el recurso, la implementación debe comenzar a enviar datos a la cola de lectura usando this.push(dataChunk). _read() puede continuar leyendo desde el recurso y enviando datos hasta que readable.push() retorne false. Sólo cuando _read() es llamado de nuevo después de finalizar debe resumir el envío de datos adicionales en la cola.
+
+Una vez que readable._read() ha sido llamado, no será llamado de nuevo hasta que hayan más datos pasados por readable.push(). Datos vacíos como buffers vacíos o strings vacíos no llamarán a readable._read().
+
+El argumento size es advirsorio.l Para implementaciones de read() donde una operación retorna datos puede usarse el argumento size para determinar cuántos datos se pedirán. Otras implementaciones pueden igrnorar este argumento y simplemente proveer datos cuando estén disponibles. No hay necesidad de esperar hasta que los bytes de size estén disponibles a stream.push(chunk).
+
+El método readable._read() es precedido con un _ ya que es interno.
+
+### readable._destroy(err, callback)
