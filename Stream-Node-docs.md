@@ -1791,4 +1791,10 @@ Tras Node.js 0.10 la iterfaz de readable se simplificó, pero también pasó a s
 - En lugar de esperar llamadas de read(), los eventos 'data' serán emitidos inmediatamente. Las aplicaciones que necesiten mejorar su rendimiento podrían necesitar algo de trabajo para decidir cómo tratar los datos en los que requieren ser guardados los datos leídos en buffers con lo que los datos no se pierdan.
 - pause() era advirtorio, ahora es garantizado. Esto significa que era necesario estar preparado para recibir 'data' incluso cuando  el stream estaba en pause.
 
+## readable.read(0)
 
+Hay algunos casos en los que es necesario hacer un refresh de los mecanismos del stream, sin consumir datos. Se puede llamar a readable.read(0), que siempre retornará null.
+
+Si el buffer interno de lectura está por debajo del highWaterMark, y el stream no está leyendo, llamar a stream.read(0) realizará un _read() de bajo nivel.
+
+Mientras la mayoría de aplicaciones nunca lo van a necesitar, hay situaciones dentro de node.js donde esto se hace, particularmente de manera intera en la clase.
