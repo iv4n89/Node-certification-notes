@@ -1798,3 +1798,17 @@ Hay algunos casos en los que es necesario hacer un refresh de los mecanismos del
 Si el buffer interno de lectura está por debajo del highWaterMark, y el stream no está leyendo, llamar a stream.read(0) realizará un _read() de bajo nivel.
 
 Mientras la mayoría de aplicaciones nunca lo van a necesitar, hay situaciones dentro de node.js donde esto se hace, particularmente de manera intera en la clase.
+
+## readable.push("")
+
+No es recomendable su uso
+
+Esto llama a readable.push() y provoca que el proceso de lectura se produzca. Pero ir vacío no genera datos para ser consumidos.
+
+## hightWaterMark discrepancia tras llamar a readable.setEncoding()
+
+Usar setEncoding() cambiará el comportamiento de cómo highWaterMark opera en no objectMode
+
+Típicamente, el tamaño del buffer es medido con highWaterMark en bytes. Sin embargo,tras llamar a setEncoding() la función de comparación comenzará a medir el tamaño del buffer en caracteres.
+
+No es un problema común en casos de latin1 o acii. Pero se debe tener en cuenta cuando se trabaja con strings ya que puede contener caracteres multi-byte.
