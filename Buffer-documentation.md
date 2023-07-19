@@ -158,4 +158,111 @@ console.log(bug.length);
 // 16
 ```
 
+Buffer.from() y TypedArray.from() son diferentes. Específicamente, la variante de TypedArray acepta un segundo argumento que es un mapping function que es invocado en cada elemento del typed array:
+
+- TypedArray.from(source[, mapFn[, thisArg]])
+
+Buffer.from() no soporta este mapping function:
+
+- Buffer.from(array)
+- Buffer.from(buffer)
+- Buffer.from(arrayBuffer[, byteOffset[, length]])
+- Buffer.from(string[, encoding])
+
+## Buffers e iteraciones
+
+Los buffers pueden ser iterados con un for of:
+
+```
+const buf = Buffer.from([1, 2, 3]);
+
+for (const b of buf) {
+  console.log(b);
+}
+
+// Imprime
+// 1
+// 2
+// 3
+```
+
+Adicionalmente, buf.values(), buf.keys() y buf.entries() pueden ser usados para crear iteradores.
+
+## Class: Buffer
+
+La clase Buffer es un tipo global para tratar con datos binarios directamente. Puede ser construído de varias formas.
+
+### Static method: Buffer.alloc(size[, fill[, encoding]])
+
+- size <integer> La longitud deseada para el Buffer
+- fill <string> | <Buffer> | <Uint8Array> | <integer> Un valor para pre-rellenar el nuevo buffer. Default 0.
+- encoding <string> Si fill es un string, este es su encoding. Default 'utf8'
+
+```
+const buf = Buffer.alloc(5);
+
+console.log(buf);
+// Imprime: <Buffer 00 00 00 00 00>
+```
+
+Si el size es más grande que buffer.constants.MAX_LENGTH o menor a 0, se lanza un ERR_INVALID_OPT_VALUE.
+
+Si fill es especificado, el buffer es inicializado con buf.fill(fill).
+
+```
+const buf = Buffer.alloc(5, 'a');
+
+console.log(buf);
+// <Buffer 61 61 61 61 61>
+```
+
+Si fill y encoding son especificados, el buffer es inicializad llamando buf.fill(fill, encoding).
+
+```
+const buf = Buffer.alloc(11, 'Gasdlfjsf=', 'base64');
+
+console.log(buf);
+// <Buffer 68 65 6c 6c 6f 20 77 6f 72 6c 64>
+```
+
+Llamar a Buffer.alloc() pueede ser más lento que Buffer.allocUnsafe() pero se asegura que los nuevos Buffers nunca contendrán datos sensibles de anteriores buffers, incluyendo datos que no hayan sido posicionados en el buffer.
+
+Un TypeError se lanzará si size no es un número.
+
+### Static method: Buffer.allocUnsafe(size)
+
+- size <integer> La longitud deseada.
+
+Crea un nuevo Buffer de <size> bytes. Si el size es mayor que la constante buffer.constants.MAX_LENGTH o menor a 0, un ERR_INVALID_OPT_VALUE es lanzado.
+
+La memoria del Buffer creado no está inicializado. El contenido del nuevo buffer es no conocido y puede contener datos sensibles. Usar Buffer.alloc() en su lugar para inicializar con 0s.
+
+```
+const buf = Buffer.allocUnsafe(10);
+
+console.log(buf);
+// Imprime <Buffer ...>
+
+buf.fill(0);
+
+console.log(buf);
+// Imprime <Buffer 00 00 00 00 00 00 00 00 00 00 00>
+```
+
+Un TypeError se lanza si size no es un número
+
+El módule Buffer pre-posiciona un internal buffer del tamaño Buffer.poolSize que es usado por el pool para el posicionamiento de nuevos Buffers creados con Buffer.allocUnsafe(), Buffer.from(array), Buffer.concat() y el deprecado new Buffer(size); sólo si Buffer.poolSize es mayor a 1
+
+El uso de esta memoria pre-posicionada es la clave entre llamar a Buffer.alloc(size, fill) contra Buffer.allocUnsafe(size).fill(fill). Específicamente, Buffer.alloc(size, fill) nunca serán usados internamente por el pool del Buffer, mientras que Buffer.allocUnsafe(size).fill(fill) será usado por el pool del buffer interno si size es menor o igual a la mitad de Buffer.poolSize. La diferencia es mínima, pero puede ser importante cuando la aplicación requiere el rendimiento adicional que proporciona Buffer.allocUnsafe().
+
+### Static method: Buffer.allocUnsafeSlow(size)
+
+- size <integer> El tamaño deseado del nuevo Buffer.
+
+Asigna un nuevo Buffer del tamaño size de bytes. Si size es mayor... (blabla)
+
+No está inicializado y puede contener datos sensibles. Usar buf.fill(0) para inicializar el Buffer con 0s.
+
+Cuando usamos Buffer.allocUnsafe() para asignar un nuevo Buffer, las asignaciones de menos de 4kb son partidas desde un buffer pre-asignado. Esto permite a aplicaciones evitar crear muchos buffers individuales. Esto mejora tanto el rendimiento como el uso de memoria eliminando la necesidad de trackear y limpiar muchos objetos de ArrayBuffer individuales.
+
 
