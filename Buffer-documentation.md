@@ -265,4 +265,170 @@ No está inicializado y puede contener datos sensibles. Usar buf.fill(0) para in
 
 Cuando usamos Buffer.allocUnsafe() para asignar un nuevo Buffer, las asignaciones de menos de 4kb son partidas desde un buffer pre-asignado. Esto permite a aplicaciones evitar crear muchos buffers individuales. Esto mejora tanto el rendimiento como el uso de memoria eliminando la necesidad de trackear y limpiar muchos objetos de ArrayBuffer individuales.
 
+Sin embargo, en el caso que un desarrollador necesite retener un pequeño trozo de datos en la memoria desde un pool por un tiempo indeterminado, sería apropiado crear un buffer un-pooled usando Buffer.allocUnsafeSlow() y copiar los bits relevantes.
+
+```
+// Se necestia mantener algunos chunks pequeños en memoria
+const store = [];
+
+socket.on('readable', () => {
+  let data;
+  while (null !== (data = readable.read())) {
+    // Asignar los datos retenidos
+    const sb = Buffer.allocateUnsafeSlow(10);
+    // Copiar los datos a la nueva asignación
+    data.copy(sb, 0, 0, 10);
+    store.push(sb);
+  }
+});
+```
+
+Un TypeError es lanzado si size no es un número
+
+### Static method: Buffer.byteLength(string[, encoding])
+
+- string <string> | <Buffer> | <TypedError> | <DataView> | <ArrayBuffer> | <SharedArrayBuffer> Un valor para calcular la longitud
+- encoding <string> Si `string` es un string, este es su encoding. Default utf8
+- returns <integer> El número de bytes contenido dentro de string
+
+Retorna la longitud de bytes cuando se codifica con el encoding pasado. No es lo mismo que String.prototype.length.
+
+Para base64 y hex, esta función asume input válido. Para strings que contienen datos no codificados en base64 o hex (ej. espacio en blanco), el retorno puede ser mayor que la longitud del buffer creado desde el string.
+
+```
+const str = '\u00db + \u00bc = \u00bd';
+
+console.log(`${str}: ${str.length} characteres, ` + `${Buffer.byteLength(str, 'utf8')} bytes`);
+// 9 characteres - 12 characters
+```
+
+### Static method: Buffer.compare(buf1, buf2)
+
+- buf1 <Buffer> | <Uint8Array>
+- buf2 <Buffer> | <Uint8Array>
+- returns <integer> -1, 0 o 1 dependiendo del resultado de la comparación.
+
+Compara buf1 con buf2, típicamente para tareas de ordenación de instancias de Buffer. Esto es equivalente a llamar buf1.compare(buf2).
+
+```
+const buf1 = Buffer.from('1234');
+const buf2 = Buffer.from('0123');
+const arr = [buf1, buf2];
+
+console.log(arr.sort(Buffer.compare));
+// Orden [buf2, buf1]
+```
+
+### Static method: Buffer.concat(list[, totalLength])
+
+- list <Buffer[]> | <Uint8Array> Lista de Buffer o Uint8Array a concatenar
+- totalLength <integer> Longitud total de Buffers en la lista cuando son concatenados
+- returns <Buffer>
+
+Retorna un nuevo Buffer resultado de la concatenación de todos los buffers de una lista.
+
+Si la lista no tiene itemos, o el totalLength es 0, entonces un nuevo Buffer de longitud 0 es retornado.
+
+Si totalLength no se provee, es calculado desde los buffers en la lista agregando sus longitudes
+
+Si totalLength es provisto, es coaccionado a un integer no asignado. Si la combinación de longitudes de los buffers en una lista excede el totalLength, el resultado es truncado a totalLength.
+
+```
+// Crea un único Buffer desde una lista de tres instancias de Buffer.
+
+const buf1 = Buffer.alloc(10);
+const buf2 = Buffer.alloc(14);
+const buf3 = Buffer.alloc(18);
+const totalLength = buf1.length + buf2.length + bu3.length;
+
+console.log(totalLength);
+// 42
+
+const bufA = Buffer.concat([buf1, buf2, buf3], totalLength);
+
+console.log(bufA);
+// <Buffer 00 00 00 ...>
+
+console.log(bufA.length)
+// 42
+```
+
+Buffer.concat() puede usar el pool interno de Buffer como Buffer.allocUnsafe() hace.
+
+### Static method: Buffer.from(array)
+
+- array <integer[]>
+
+Asigna un nuevo Buffer usando un array de bytes en rango 0 - 255. Las entradas fuera de este rango serán truncadas.
+
+```
+// Crea un nuevo Buffer que contiene los bytes de utf-8 del string 'buffer'
+const buf = Buffer.from([0x62, 0x75, 0x66, 0x66, 0x65, 0x72]);
+```
+
+Un TypeError será lanzado si array no es un Array y otro tipo apropiado para variantes de Buffer.from()
+
+Buffer.from(array) y Buffer.from(string) también pueden usar el pool interno de Buffer como Buffer.allocUnsafe().
+
+### Static method: Buffer.from(arrayBuffer[, byteOffeset[, length]]);
+
+- arrayBuffer <ArrayBuffer> | <SharedArrayBuffer> Un ArrayBuffer, SharedArrayBuffer, por ejemplo la propiedad .buffer de un TypedArray
+- byteOffset <integer> Inde del primer byte expuesto. Default 0
+- length <integer> Número de bytes expuest. Default arrayBuffer.byteLength - byteOffset
+
+Crea una vista del arrayBuffer sin copiar la memoria subyacente. Por ejemplo, cuando pasamos una referencia del .buffer de un TypedArray, el nuevo Buffer creado comparte algo de memoria asignada como el TypedArray.
+
+```
+const arr = new Uint16Array(2);
+
+arr[0] = 5000;
+arr[1] = 4000;
+
+// Comparte memoria con 'arr'
+const buf = Buffer.from(arr.buffer);
+
+console.log(buf)
+// <Buffer 88 13 a0 0f>
+
+// Cambiar el Uint16Array modifica también el Buffer
+arr[1] = 6000;
+
+console.log(buf)
+// <Buffer 88 13 a0 0f>
+```
+
+El byteOffset opcional y length especifican un rango de memoria dentro de arrayBuffer que será compartido con el Buffer.
+
+```
+const ab = new ArrayBuffer(10);
+const buf = Buffer.from(ab, 0, 2);
+
+console.log(buf.length);
+// 2
+```
+
+Un TypedError será lanzado si arrayBuffer no es un ArrayBuffer o una variante apropiada.
+
+### Static method: Buffer.from(buffer)
+
+- buffer <Buffer> | <Uint8Array> Un Buffer o Uint8Array existente desde el que copiar datos
+
+Copia los datos del buffer a un nuevo Buffer.
+
+```
+const buf1 = Buffer.from('buffer');
+const buf2 = Buffer.from(buf1);
+
+buf1[0] = 0x61;
+
+console.log(buf1.toString());
+// auffer
+console.log(buf2.toString());
+// buffer
+```
+
+Un TypeError será lanzado si buffer (blabla)
+
+### Static method: Buffer.from(object[, offsetOrEncoding[, length]])
+
 
