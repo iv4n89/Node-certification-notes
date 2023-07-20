@@ -431,4 +431,165 @@ Un TypeError será lanzado si buffer (blabla)
 
 ### Static method: Buffer.from(object[, offsetOrEncoding[, length]])
 
+- object <Object> Un objeto que soporta Symbol.toPrimitive o valueOf()
+- offsetOrEncoding <integer> | <string> Un byte-offset o encoding
+- length <integer> Un length
 
+Para aquellos objetos cuya función valueOf() retorna un valor no estrictamente igual a object, retorna Buffer.from(object.valueOf(), offsetOrEncoding, length)
+
+```
+const buf = Buffer.from(new String('this is a test'));
+// <Buffer 74 68 ...>
+```
+
+Para los objetos que soportan Symbol.toPrimitive, retorna `Buffer.from(object[Symbol.toPrimitive]('string')`, offsetOrEncofing).
+
+```
+class Foo {
+  [Symbol.toPrimitive]() {
+    return 'this is a test';
+  }
+}
+
+const buf = Buffer.from(new Foo(), 'utf8');
+// <Buffer 74 68 ...>
+```
+
+Un TypeError será lanzado si object no tiene los métodos mencionados
+
+### Static method: Buffer.from(string[, encoding])
+
+- string <string> Un string codificados
+- encoding <string> El encoding de string. Default utf8
+
+Crea un nuevo Buffer que contiene string. El encoding identifica el character encoding a usar cuando convertimos string a bytes.
+
+```
+const buf1 = Buffer.from('this is a tést');
+const buf2 = Buffer.from('394583475983475983493485739458', 'hex');
+
+console.log(buf1.toString());
+// this is a tést
+console.log(buf2.toString());
+// this is a tést
+console.log(buf1.toString('latin1'));
+// this is a tÃ©st
+```
+
+Un TypedError será lanzado si string no es un string
+
+### Static method: Buffer.isBuffer(obj)
+
+- obj <Object>
+- returns <boolean>
+
+Retorna true si obj es un Buffer
+
+### Static method: Buffer.isEncoding(encoding)
+
+- encoding <string> Un character encoding para chequear
+- returns <boolean>
+
+```
+console.log(Buffer.isEncoding('utf-8'));
+// true
+
+console.log(Buffer.isEncoding('hex'));
+// true
+
+console.log(Buffer.isEncoding('utf/8'));
+// false
+
+console.log(Buffer.isEncoding(' '));
+// false
+```
+
+### Class property: Buffer.poolSize
+
+- <integer> Default 8192
+
+Es el tamaño en bytes del pre-asignado buffer interno usado para pooling. Puede ser modificado.
+
+### buf[index]
+
+- index <integer>
+
+El index operator `[index]` puede ser usado para optener y setear la posición index en buf. Los valores se refieren a bytes individuales, entre 0 y 255.
+
+Este operador es heredado de Uint8Array. buf[index] retorna undefined si index es negativo o mayor o igual a buf.length, y buf[index] = value no modifica el buffer si index está fuera de rango.
+
+```
+// Copiar un string ascii en Buffer un byte cada vez
+// Solo funciona con strings ascii, se debe usar Buffer.from() para realizar esta conversión
+
+const str = 'Node.js';
+const buf = Buffer.allocUnsafe(str.length);
+
+for (let i = 0; i < str.length; i++) {
+  buf[i] = str.charCodeAt(i);
+}
+
+console.log(buf.toString('utf8'));
+// Node.js
+```
+
+### buf.buffer
+
+- <ArrayBuffer> El objeto ArrayBuffer subyacente desde el que el buffer es creado.
+
+Este ArrayBuffer no está garantizado para corresponder exactamente con el Buffer original
+
+```
+const arrayBuffer = new ArrayBuffer(16);
+const buffer = Buffer.from(arrayBuffer);
+
+console.log(buffer.buffer === arrayBuffer);
+// true
+```
+
+### buf.byteOffset
+
+- <integer> El byteOffset del buffer subyacente al ArrayBuffer
+
+Cuando seteamos byteOffset el Buffer.from(ArrayBuffer, byteOffset, length), o a veces cuando asociamos un buffer más pequeño que Buffer.poolSize, el buffer no comienza desde el offset 0 en el subyacente ArrayBuffer.
+
+Esto puede causar problemas cuando accedemos al subyacente ArrayBuffer directamente usando buf.buffer, ya que otras partes del ArrayBuffer pueden no estar relacionadas con el Buffer.
+
+Un issue común cuando creamos un TypedArray que comparte memoria con un Buffer es que en este caso uno necesita especificar el byteOffset correctamente.
+
+```
+// Crear un buffer más pequeño que Buffer.poolSize
+const nodeBuffer = new Buffer.from([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+
+// Cuando convertimos el Node.js Buffer a un Int8Array, usar el bytOffset para referirse sólo
+// a la parte de 'nodeBuffer.buffer' que contiene la memoria para 'nodeBuffer'
+new Int8Array(nodeBuffer.buffer, nodeBuffer.byteOffset, nodeBuffer.length);
+```
+
+### buf.compare(target[, targetStart[, targetEnd[, sourceStart[, sourceEnd]]]])
+
+- target <Buffer> | <Uint8Array> Un Buffer o Uint8Array con el que comparar buf.
+- targetStart <integer> Offset dentro de target desde el que comenzar la comparación. Default 0
+- targetEnd <integer> Offset dentro de target hasta el que hacer la comparación (no inclusive). Default target.length
+- sourceStart <integer> Offset dentro de buf desde el que comenzar la comparación. Default 0
+- sourceEnd <integer> Offset dentro de buf hasta el que hacer la comparación (no inclusive). Default buf.length
+- returns <integer>
+
+Compara buf con target y retorna un número indicando cuál viene antes, después o si son iguales en orden. La comparación se realiza con la secuencia de bytes en cada Buffer.
+
+- 0 si target es igual a buf.
+- 1 si target debe ir antes de buf
+- -1 si target debe ir después de buf
+
+```
+const buf1 = Buffer.from('ABC');
+const buf2 = Buffer.from('BCD');
+const buf3 = Buffer.from('ABCD');
+
+console.log(buf1.compare(buf1));
+// 0
+console.log(buf1.compare(buf2));
+// -1
+console.log(buf1.compare(buf3));
+// -1
+```
