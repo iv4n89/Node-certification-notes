@@ -771,3 +771,418 @@ foo().then(() => console.log('done'));
 ```
 
 ### events.captureRejections
+
+value: <boolean>
+
+Cambia el default captureRejections en todos los objetos EventEmitter
+
+### events.captureRejectionSymbol
+
+value: Symbol.for('nodejs.rejection')
+
+### events.on(emitter, eventName[, options])
+
+- emitter <EventEmitter>
+- eventName <string> | <symbol> El nombre del evento a ser escuchado
+- options <Object>
+  - signal <AbortSignal> Puede ser usado para cancelar eventos a la espera
+- return <AsyncIterator> que itera los eventos eventName emitidos por emitter
+
+```javascript
+import {on, EventEmitter } from 'node:events';
+import process from 'node:process';
+
+const ee = new EventEmitter();
+
+// Emitir luego on
+process.nextTick(() => {
+  ee.emit('foo', 'bar');
+  ee.emit('foo', 42);
+});
+
+for await (const event of on(ee, 'foo')) {
+  // La ejecución de este inner block es síncrono y procesa un evento a la vez (incluso con el await). No usar si concurrencia es necesaria
+  console.log(event); // Imprime ['bar'] [42]
+}
+// Inalcanzable
+```
+
+Retorna un AsyncIterator que itera los eventos eventName. Lanzará error si el EventEmitter emite error. Remueve todos los listeners cuando sale del loop. El valor retornado de cada iteración es un array compuesto por los argumentos del evento emitido
+
+Un <AbortSignal> puede ser usado para cancelar eventos en espera:
+
+```javascript
+import { on, EventEmitter } from 'node:events';
+import process from 'node:process';
+
+const ac = new AbortController();
+
+(async () => {
+  const ee = new EventEmitter();
+
+  process.nextTick(() => {
+    ee.emit('foo', 'bar');
+    ee.emit('foo', 42);
+  });
+
+  for await (const event of en(ee, 'foo', { signal: ac.signal })) {
+    // Ejecución síncrona
+    console.log(event);
+  }
+}) ();
+
+process.nextTick(() => ac.abort());
+```
+
+### events.setMaxListeners(n[, ...eventTargets])
+
+- n <number> Un número no negativo. El máximo número de listeners por evento EventTarget
+- ...eventTargets <EventTarget[]> | <EventEmitter[]> 0 o más <EventTarget> o <EventEmitter>. Si ninguno es especificado, n es seteado al máximo por defecto para todos los nuevos creados EventTarget y EventEmitter.
+
+```javascript
+import { setMaxListeners, EventEmitter } from 'node:events';
+
+const target = new EventTarget();
+const emitter = new EventEmitter();
+
+setMaxListeners(5, target, emitter);
+```
+
+## Class events.EventEmitterAsyncResource extends EventEmitter
+
+Integra EventEmitter con <AsyncResource> para los EventEmitters que requiren manual async tracking. Especialmente, todos los eventos emitidios por instancias de events.EventEmitterAsyncResource correrán dentro de async context.
+
+```javascript
+import { EventEmitterAsyncResource, EventEmitter } from 'node:emitter;
+import { notStrictEqual, strictEqual } from 'node:assert';
+import { executionAsyncId, triggerAsyncId } from 'node:async_hooks';
+
+// Async tracking tool para identificar esto con Q
+const ee1 = new EventEmitterAsyncResource({ name: 'Q' });
+
+// 'foo' listeners correrán en el EventEmitter async context
+ee1.on('foo', () => {
+  strictEqual(executionAsyncId(), eeq.asyncId);
+  strictEqual(triggerAsyncId(), ee1.triggerAsyncId);
+});
+
+const ee2 = new EventEmitter();
+
+// 'foo' listeners on ordinary EventEmitters that do not track async
+// context, however, run in the same async context as the emit().
+ee2.on('foo', () => {
+  notStrictEqual(executionAsyncId(), ee2.asyncId);
+  notStrictEqual(triggerAsyncId(), ee2.triggerAsyncId);
+});
+
+Promise.resolve().then(() => {
+  ee1.emit('foo');
+  ee2.emit('foo');
+});
+```
+
+La clase EventEMitterAsyncResource tiene los mismos métodos y toma las mismas opciones que EventEmitter y AsyncResource.
+
+### new events.EventEmitterAsyncResource([options])
+
+- options <Object>
+  - captureRejections <boolean> Activa captura autamática de promise rejection. Default false.
+  - name <string> Tipo. Default: new.target.name
+  - triggerAsyncId <number> Id del contexto de ejecutción que creó este evento asíncrono. Default executionAsyncId()
+  - requireManualDestroy <boolean> Si es true, deshabilitia emitDestroy cuando el objeto está en el garbage collector. Normalmente no necesita ser seteado (incluso si emtiDestroy es llamado manualmente),  a menos que el asyncId ...
+
+### eventemitterasyncresource.asyncId
+
+- Type <number> El único asyncId asignado al recurso
+
+### eventemitterasyncresource.asyncResource
+
+- Type: El susodicho <AsyncResource>
+
+El objeto AsyncResource retornado tiene una propiedad adicional eventEmitter que provee una referencia a este EventEmitterAsyncResource
+
+### eventemitterasyncresource.emitDestroy()
+
+Llama a todos los destroy hooks. Esto debe ser llamado sólo una vez. Un error será lanzado si se llama de una vez. Debe ser llamado de manera MANUAL. Si el recurso está para ser recogido por el garbage collector entonces los hooks de destroy no serán llamados nunca.
+
+### eventemitterasyncresource.triggerAsynId
+
+- Type <number> El mismo triggerAsyncId pasado al constructor de AsyncResource
+
+## API de EventTarget y Event
+
+Los objetos EventTarget y Event son implementaciones específicas de Node.js del web api de EventTarget que exponen algunos core APIs de Node.js
+
+```javascript
+const target = new EventTarget();
+
+target.addEventListener('foo', event => console.log('foo event happened!'); );
+```
+
+## Node.js EventTarget vs DOM EventTarget
+
+Hay dos diferencias clave entre el EventTarget de Node.js y el del Web API:
+
+1. Cualquier EventTarget de DOM debe jerárquico. No hay conceptos de jerarquía o propagación de eventos en Node.js. Es decir, un evento despachado por un EventTarget no se propaga por la jerarquía de target objects nested que puede tener cada uno de los handlers del evento.
+2. En un EventTarget de Node.js, si un event listener es una async function o retorna una promesa, y la promesa retornada es rechazada, el rejection es capturado de la misma manera que se haría de manera síncrona.
+
+## NodeEventTarget vs EventEmitter
+
+El objeto NodeEventTarget implementa un subset modificado del api EventEmitter que permite emular un EventEmitter en ciertas ocasiones. Un NodeEventTarget no es una instancia de EventEmitter y no puede ser usado en lugar de un EventEmitter en muchos casos.
+
+1. Cualquier listener puede ser registrado sólo una vez por tipo de evento. Los demás intentos serán ignorados.
+2. NodeEventTarget no emula el api completo de EventEmitter. Especialmente prependListener(), prependOnceListener(), rawListener() y errorMonitor no son emulados. Los eventos newListener y removeListener tampoco son emulados.
+3. NodeEventTarget no implementa ningún comportamiento especial para el tipo 'error'
+4. NodeEventTarget soporta objetos de EventListener así como funciones como listeners para todos los tipos de eventos.
+
+## Event listener
+
+Los event listeners registrados para un tipo de evento pueden ser funciones de JS u objetos con un handleEvent property cuyo valor sea una función.
+
+En cualquier caso, el handler es invocado con el argumento pasado al evento hacia la función eventTarget.dispatchEvent().
+
+Funciones asíncronas pueden ser usadas como event listeners.
+
+Un error enviado por uno de los handlers no evita que el resto sea invocado.
+
+El valor de retorno de un handler es ignorado.
+
+Los handlers son siempre invocados en el mismo orden que son añadidos.
+
+Los handlers pueden mutar el objeto event.
+
+```javascript
+function handler1(event) {
+  console.log(event.type); // 'foo'
+  event.a = 1;
+}
+
+async function handler2(event) {
+  console.log(event.type); // 'foo'
+  console.log(event.a); // 1
+}
+
+const handler3 = {
+  handleEvent(event) {
+    console.log(event.type); // 'foo'
+  },
+};
+
+const handler4 = {
+  async handleEvent(event) {
+    console.log(event.type); // 'foo'
+  },
+};
+
+const target = new EventTarget();
+
+target.addEventListener('foo', handler1);
+target.addEventListener('foo', handler2);
+target.addEventListener('foo', handler3);
+target.addEventListener('foo', handler4, { once: true });
+```
+
+## Error handling en EventTarget
+
+Cuando un event listener registrado lanza un error (o retorna una promesa que es rechazada), por defecto el error es tratado como un uncaught exception en process.nextTick(). Esto significa que uncaught exceptions en EventTargets matarán el proceso de Node.js por defecto.
+
+Lanzando errores dentro de un event listener no parará los otros handlers registrados de ser invocados.
+
+EventTarget no implementa ningún handling de eventos de tipo error por defecto.
+
+Actualmente, los errores son enviados a process.on('error') antes de llegar a process.on('uncaughtException'). Este comportamiento está deprecado y cambiará en el futuro release para alinear EventTarget con las otras apis de Node.js. 
+
+## Class: Event
+
+El objeto Event es una adaptación del api web Event. Las instancias son creadas internamente por Node.js
+
+### event.bubbles
+
+- Type: <boolean> Siempre retorna false
+
+No usado por Node.js
+
+### event.cancelBubble
+
+Usar event.stopPropagation()
+
+### event.cancelable
+
+- Type: <boolean> True si el evento fue creado con la opción cancelable
+
+### event.composed
+
+- Type: <boolean> Siempre retorna false.
+
+No usado por Node.js
+
+### event.emposedPath()
+
+Retorna un array con una única entrada del actual EventTarget o vacío si el evento no está siendo despachado. No usado por Node.js
+
+### event.currentTarget
+
+- Type: <EventTarget>
+
+Alias para event.target
+
+### event.defaultPrevented
+
+- Type: <boolean>
+
+True si es cancelable y event.preventDefault() ha sido llamado
+
+### event.eventPhase
+
+- Type: <number> Retorna 0 mientras un evento no sea despachado, 2 mientras esté siendo despachado
+
+No usado por Node.js
+
+### event.isTrusted
+
+- Type: <boolean>
+
+El evento abort es emitido con isTrusted en true. Es false en cualquier otro caso.
+
+### event.preventDefault()
+
+Setea defaultPrevented a true si cancelable es true
+
+### event.stopImmediatePropagation()
+
+Para la propagación de los listeners después de que el actual se haya completado.
+
+### event.stopPropagation()
+
+No usado por Node.js
+
+### event.target
+
+- Type: <EventTarget> El EventTarget dispatching event
+
+### event.timeStamp
+
+- Type: <number>
+
+El timestamp en ms de cuando el objeto Event fue creado
+
+### event.type
+
+- Type: <string>
+
+Identificador del tipo de evento
+
+## Class: EventTarget
+
+### eventTarget.addEventListener(type, listener[, options])
+
+- type <string>
+- listener <Function> | <EventListener>
+- options <Object>
+  - once <boolean> Si es true, el listener se elimina automáticamente cuando es invocado por primera vez. Default false
+  - passive <boolean> Si es true, el objeto de Event no llamará a preventDefault()
+  - capture <boolean> No usado directamente por Node.js. Default false
+  - signal <AbortSignal> El listener será elimninado cuando el objeto de AbortSignal llame a su abort.
+
+Añade un nuevo handler para el tipo de evento type. Cualquier listener dado es añadido solo una vez por tipo y por valor de la opción capture
+
+Si onces es true, el listener es removido después de ser llamado por primera vez el tipo de evento.
+
+La opción capture no usado.
+
+```javascript
+function handler(event) {}
+
+const target = new EventTarget();
+target.addEventListener('foo', handler, { capture: true }); // 1
+target.addEventListener('foo', handler, { capture: fasle }); // 2
+
+// Remueve la segunda instancia de handler
+target.removeEventListener('foo', handler);
+
+// Remueve la primera instancia de handler
+target.removeEventListener('foo', handler);
+```
+
+### eventTarget.dispatchEvent(event)
+
+- event <Event>
+- return <boolean> true si la prop cancelable del event es false o preventDefault() no fue invocado.
+
+Lanza el evento a la lista de handlers para event.type
+
+Los listeners registrados son invocados de manera síncrona en el orden que son registrados.
+
+### eventTarget.removeEventListener(type, listener[, options])
+
+- type <string>
+- listener <Function> | <EventListener>
+- options <Object>
+  - capture <boolean>
+
+Remueve el listener desde la lista de handlers para el tipo de evento
+
+## Class: CustomEvent
+
+__EXPERIMENTAL__
+
+## Class: NodeEventTarget
+
+- Extends <EventTarget>
+
+Es una extensión específica para node.js de EventTarget que simutal un subset del api de EventEmiiter.
+
+### nodeEnventTarget.addListener(type, listener)
+
+- type <string>
+- listener <Function> | <EventListener>
+- return <EventTarget> this
+
+Extensión específica a la clase EventTarget. La única diferencia entre addListener() y addEventListener() es que addListener() retornará una referencia al EventEmitter.
+
+### nodeEventTarget.emit(type, arg)
+
+- type <string>
+- arg <ant>
+- return <boolean> true si los event listeners registrados para el tipo type exise.
+
+### nodeEventTarget.eventNames()
+
+- return <string[]>
+
+Retorna los nombres de los eventos para los cuales listeners han sido registrados.
+
+### nodeEventTarget.listenerCount(type)
+
+- type <string>
+- return <number>
+
+Retorna el número de listeners registrados para el tipo type
+
+### nodeEventTarget.setMaxListners(n)
+
+- n <number>
+
+### nodeEventTarget.getMaxListeners()
+
+- Retorna <number>
+
+### nodeEventTarget.off(type, listener[, options])
+
+- type <string>
+- listener <Function> | <EventListener>
+- options <Object>
+  - capture <boolean>
+- return <EventTarget> this
+
+### nodeEventTarget.on(type, listener)
+
+- type <string>
+- listener <Function> | <EventListener>
+- return <EventTarget> this
+
+### nodeEventTarget.once(type, listener)
+
+### nodeEventTarget.removeAllListeners(type)
+
+### nodeEventTarget.removeListener(type, listener[, options])
