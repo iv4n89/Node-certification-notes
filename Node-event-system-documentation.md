@@ -561,4 +561,213 @@ class MyClass extends EventEmitter {
 
 ### events.defaultMaxListeners
 
-Por defecto, un máximo de 10 listeners pueden ser registrados para un evento. Este límite puede ser cambiado por cada instancia de EventEmitter
+Por defecto, un máximo de 10 listeners pueden ser registrados para un evento. Este límite puede ser cambiado por cada instancia de EventEmitter usando emitter.setMaxListeners(n). Para cambiar el valor por defecto de todos los EventEmitters, se puede usar events.defaultMaxListeners. Si el valor no es positivo lanza un RangeError.
+
+Precaución cuando se setea defaultMaxListeners ya que cambiarlo afecta a todos los EventEmitters, incluidos aquellos que se crearon antes de hacer el cambio. Sin embargo, llamar a emitter.setMaxListeners(n) aún tiene precedencia sobre events.defaultMaxListeners.
+
+No es un limitador. La instancia de eventEmitter permitirá más listeners a ser agregados pero el aoutput trace warning a stderr dobre possible EventEmitter memory leak puede aparecer. Para un único EventEmitter, los métodos emitter.getMaxListeners() y emitter.setMaxListeners() pueden usarse termoralmente.
+
+```javascript
+import { EventEmitter } from 'node:events';
+const emitter = new EventEmitter();
+emitter.setMaxListeners(emitter.getMaxListeners() + 1);
+emitter.once('event', () => {
+  // hacer algo
+  emitter.setMaxListeners(Math.max(emitter.getMaxListeners() -1, 0));
+});
+```
+
+El command flag --trace-warnings puede ser usado para mostrar el stack trace para dichos warnings.
+
+El warning emitido puede ser inspeccionado con process.on('warning') y tendrá las propiedades adicionales emitter, type y count, refiriéndose a la instancia de eventEmitter, el nombre del evento y el número de listeners, respectivamente. La nombre de la propiedad es seteada a 'MaxListenersExceededWarning'.
+
+### events.errorMonitor
+
+Este symbol debe ser usado para instalar un listener para sólo monitorizar eventos error. Los listeners instalados usando este symbol son llamados antes de los listeners regulares de error.
+
+Instalar un listener usando este symbol no cambia el comportamiento una vez el evento error es emitido. Aún así, el proceso crasheará si no hay listeners para error instalados.
+
+### events.getEventListeners(emitterOrTarget, eventName)
+
+- emitterOrTarget <EventEmitter> | <EventTarget>
+- eventName <string> | <symbol>
+- return <Function[]>
+
+Retorna una copia del array de listeners para el evento llamado eventName.
+
+Para EventEmitter se comporta exactamente igual que llamando a .listeners en el emitter.
+Para EventTarget es la única manera de obtener los event listeners para el event target. Es útil para debug y diagnóstico.
+
+```javascript
+import { getEventListeners, EventEmitter } from 'node:events';
+
+{
+  const ee = new EventEmitter();
+  const listener = () => conosole.log('Events are fun');
+  ee.on('foo', listener);
+  console.log(getEventListeners(ee, 'foo')); // [ [Function: listener] ]
+}
+{
+  const et = new EventTarget();
+  const listener = () => console.log('Events are fun');
+  et.addEventListener('foo', listener);
+  console.log(getEventListeners(et, 'foo')); // [ [Function: listener] ]
+}
+```
+
+### events.getMaxListeners(emitterOrTarget)
+
+- emitterOrTarget <EventEmitter> | <EventTarget>
+- return <number>
+
+Return el máximo número de listeners seteado.
+
+En EventEmitters tiene el mismo comportamiento que .getMaxListeners
+
+En EventTarget es la única forma de obtener el máximo de listeners para el event target.
+
+```javascript
+import { getMaxListeners, setMaxListeners, EventEmitter } from 'node:events';
+
+{
+  const ee = new EventEmitter();
+  console.log(getMaxListeners(ee)); // 10
+  setMaxListeners(11, ee);
+  console.log(getMaxListeners(ee)); // 11
+}
+{
+  const et = new EventTarget();
+  console.log(getMaxListeners(et)); // 10
+  setMaxListeners(11, et);
+  console.log(getMaxListeners(et)); // 11
+}
+```
+
+### events.once(emitter, name[, options])
+
+- emitter <EventEmitter>
+- name <string>
+- options <Object>
+  - signal <AbortSignal> Puede ser usado para cancelar el evento que espera
+- return <Promise>
+
+Crea una promesa que es completada cuando el EventEmitter emite el evento dado o es rechazado si el EventEmitter emite 'error' mientras espera. La promesa será resuelta con un array de todos los argumentos emitidos con el evento.
+
+Este método es intencionalmente genérico y funciona la interfaz web EventTarget, que no tiene tiene un evento especial 'error' ni un listener para 'error'.
+
+```javascript
+import { once, EventEmitter } from 'node:events';
+import process from 'node:process';
+
+const ee = new EventEmitter();
+
+process.nextTick(() => {
+  ee.emit('myevent', 42);
+});
+
+const [value] = await once(ee, 'myevent');
+console.log(value);
+
+const err = new Error('kaboom');
+process.nextTick(() => {
+  ee.emit('error', err);
+});
+
+try {
+  await once(ee, 'myevent');
+} catch (err) {
+  console.log('error happened', err);
+}
+```
+
+El handling especial del evento error es sólo usado cuando events.once() es usado para esperar por otro evento. Si events.once() es usado para esperar por error, entonces éste es tratado como cualquier otro tipo de evento sin especial handling.
+
+```
+import { EventEmitter, once } from 'node:events';
+
+const ee = new EventEmitter();
+
+once(ee, 'error')
+  .then(([err]) => console.log('ok', err.message)
+  .catch((err) => console.error('error', err.message));
+
+ee.emit('error', new Error('boom'));
+
+// Imprime: Ok boom
+```
+
+Un <AbortSignal> puede ser usado para cancelar la espera por un evento
+
+```
+import { EventEmitter, once } from 'node:events';
+
+const ee = new EventEmitter();
+const ac = new AbortController();
+
+async function foo(emitter, event, signal) {
+  try {
+    await once(emitter, event, { signal });
+    console.log('event emitted);
+  } catch (err) {
+    if (error.name === 'AbortError') {
+      console.error('Waiting for the event was canceled!');
+    } else {
+      console.error('There was an error', error.message);
+    }
+  }
+}
+
+foo(ee, 'foo', ac.signal);
+ac.abort(); // Aborta la espera del evento
+ee.emit('foo'); // Imprime esperando ...
+```
+
+### Esperar múltiples eventos emitidos en process.nextTick()
+
+Hay un caso especial cuando usamos la función events.once() para esperar múltiples eventos emitidos en el mismo tick de process.nextTick(), o cuando hay múltiples eventos para ser emitidos síncronamente. Especialmente porque la cola de nextTick() es drenada antes de la cola de micro tasks de promise, y porque EventEmitter emite todos los eventos síncronamente, es posible para events.once() perderser un evento
+
+```javascript
+import { EventEmitter, once } from 'node:events';
+import process from 'node:process';
+
+const myEE = new EventEmitter();
+
+async function foo() {
+  await once(myEE, 'bar');
+  console.log('bar');
+
+  // Esta promesa nunva va a resolver porque el evento foo será emitido antes de que la promesa sea creada
+  await once(myEE, 'foo');
+  console.log('foo');
+}
+
+process.nextTick(() => {
+  myEE.emit('bar');
+  myEE.emit('foo');
+});
+
+foo().then(() => console.log('done'));
+```
+
+Para hacer catch de ambos eventos, crear cada uno de las promesas antes de esperar por ellas, entonces es posible usar Promise.all(), Promise.race() o Promise.allSettled():
+
+```javascript
+imprt { EventEmitter, once } from 'node:events';
+import process from 'node:process';
+
+const myEE = new EventEmitter();
+
+async function foo() {
+  await Promise.all([once(myEE, 'bar'), once(myEE, 'foo')]);
+  console.log('foo', 'bar');
+}
+
+process.nextTick(() => {
+  myEE.emit('bar');
+  myEE.emit('foo');
+});
+
+foo().then(() => console.log('done'));
+```
+
+### events.captureRejections
