@@ -427,3 +427,66 @@ En linux no funciona la escritura posicional.
 
 ### filehandle.writeFile(data, options)
 
+- data `<string>` | `<Buffer>` | `<TypedArray>` | `<DataView>` | `<AsyncIterable>` | `<Iterable>` | `<Stream>`
+- options `<Object>` | `<string>`
+  - encoding `<string>` | `<null>` El encoding esperado Default utf8
+- return `<Promise>`
+
+
+Escribe asíncronamente datos a un fichero, reemplazando el fichero si ya existe. data puede ser un string, un buffer, un AsyncIterable o un Iterable. La promesa se resuelve sin argumentos (void)
+
+Si options es un string se toma como el encoding
+
+El FileHanlde debe soportar escritura
+
+No es seguro usar filehandle.writeFile() múltiples veces sin esperar que las promesas se resuelvan.
+
+Si una o más llamadas de filehandle.write() son realizadas a un filehandle y luego se llama a filehandle.writeFile(), los datos serán escritos desde la posición actual hasta el final del fichero. No siempre escribe desde el inicio del fichero.
+
+
+### filehandle.writev(buffers[, option])
+
+- buffers `<Buffer[]>` | `<TypedArray[]>` | `<DataView[]>`
+- position `<integer>` | `<null>` El offset desde el inicio del fichero donde los datos del buffer serán escritos. Si position no es un número, los datos se escribirán en la posición actual. Default null.
+- return `<Promise>`
+
+
+Escribe un array ArrayBufferView al fichero.
+
+La promesa se resuelve con un objeto que contiene dos props:
+- bytesWritten `<integer>` El número de bytes escritos
+- buffers `<Buffer[]>` | `<TypedArray[]>` | `<DataView[]>` Una referencia a buffers pasado por argumento.
+
+
+No es seguro usar writev() múltiples veces si esperar que las promesas se resuelvan.
+
+En linux la escritura posicional no funciona.
+
+
+### fsPromises.access(path[, mode])
+
+- path `<string>` | `<Buffer>` | `<URL>`
+- mode `<integer>` Default fs.constants.F_OK
+- return `<Promise>` undefined cuando completa
+
+
+Testea los permisos del usuario para un un fichero o directorio especificado por path. El argumento mode es un integer opcional que especifica los checks de accesibilidad a ser realizados. mode debe ser el valor fs.constants.F_OK o una máscara que contiene bit a bit o cualquiera de las constantes R_OK, W_OK o X_OK.
+
+Si acaba correcto, la promesa se resuelve sin valor. Si algo falla es rejected con un Error. 
+
+```javascript
+import { access, constants } from 'node:fs/promises';
+
+try {
+  await access('/etc/passwd', contants.R_OK | contants.W_OK);
+  console.log('can access');
+} catch {
+  console.error('cannot access');
+}
+```
+
+Usar fsPromises.access() para checkear la accesibilidad a un fichero antes de usar fsPromises.open() no está recomendado. Hacer esto introduce una race condition ya que otros procesos pueden modificar el estado del fichero entre las dos llamadas. En su lugar, se debe hacer open/read/write al fichero directamente y lidiar con el error si el fichero no es accesible.
+
+
+### fsPromises.appendFile(path, data[, options])
+
