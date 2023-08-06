@@ -83,10 +83,10 @@ Emitido cuando el FileHandler es cerrado y no se volverá a usar.
 
 ### filehandle.appendFile(data[, options])
 
-- data <string> | <Buffer> | <TypedArray> | <DataView> | <AsyncIterable> | <Iterable> | <Stream>
-- options <Object> | <string>
-  - encoding <string> | <null> Default: 'utf8'
-- return <Promise> Se devuelve undefined hasta que se completa
+- data `<string>` | `<Buffer>` | `<TypedArray>` | `<DataView>` | `<AsyncIterable>` | `<Iterable>` | `<Stream>`
+- options `<Object>` | `<string>`
+  - encoding `<string>` | `<null>` Default: 'utf8'
+- return `<Promise>` Se devuelve undefined hasta que se completa
 
 Alias de filehandle.writeFile()
 
@@ -94,22 +94,22 @@ Cuando se opera con file handlers, el modo no puede ser modificado del que fue s
 
 ### filehandle.chmod(mode)
 
-- mode <integer> El bit mask mode del fichero
-- return <Promise> undefined hasta completado
+- mode `<integer>` El bit mask mode del fichero
+- return `<Promise>` undefined hasta completado
 
 Modifica los permisos del fichero.
 
 ### filehandle.chown(uid, gid)
 
-- uid <integer> El user id del nuevo propietario del fichero
-- gid <integer> El group id del nuevo grupo propietario del fichero
-- return <Promise> undefined hasta completado
+- uid `<integer>` El user id del nuevo propietario del fichero
+- gid `<integer>` El group id del nuevo grupo propietario del fichero
+- return `<Promise>` undefined hasta completado
 
 Cambia la propiedad del fichero. Wrapper para chown
 
 ### filehandle.close()
 
-- return <Promise> undefined hasta completado
+- return `<Promise>` undefined hasta completado
 
 Cierra el file handler después de esperar por cualquier operación pendiente de ser completada
 
@@ -127,14 +127,14 @@ try {
 
 ### filehandle.createReadStream([options])
 
-- options <Object>
-  - encoding <string> Default null
-  - autoClose <boolean> Default true
-  - emitClose <boolean> Default true
-  - start <integer>
-  - end <integer> Default Infinity
-  - highWaterMark <integer> Default 64 * 1024
-- return <fs.ReadStream>
+- options `<Object>`
+  - encoding `<string>` Default null
+  - autoClose `<boolean>` Default true
+  - emitClose `<boolean>` Default true
+  - start `<integer>`
+  - end `<integer>` Default Infinity
+  - highWaterMark `<integer>` Default 64 * 1024
+- return `<fs.ReadStream>`
 
 Distinto al default highWaterMark para un stream.Readable, el stream retornado por este método tiene por defecto un highWaterMark de 64 kb.
 
@@ -172,12 +172,12 @@ fs.createReadStream({ start: 90, end: 99 });
 
 ### filehandle.createWriteStream([options])
 
-- options <Object>
-  - encoding <string> Default 'utf8'
-  - autoClose <boolean> Default true
-  - emitClose <boolean> Default true
-  - start <integer>
-- return <fs.WriteStream>
+- options `<Object>`
+  - encoding `<string>` Default 'utf8'
+  - autoClose `<boolean>` Default true
+  - emitClose `<boolean>` Default true
+  - start `<integer>`
+- return `<fs.WriteStream>`
 
 options puede incluir un start option que permite escribir los data en alguna posición pasado el principio del fichero, permite valores en un rango de [0, max integer]. Modificar un fichero en lugar de reemplazarlo puede requrerir un open flag para setear a r+ en lugar de r. El encoding puede ser cualquiera de los permitidos por Buffer.
 
@@ -187,7 +187,7 @@ Por defecto, el stream emitirá un evento 'close' después de ser destruido. Set
 
 ### filehandle.datasync()
 
-- return <Promise> undefined hasta ser completado.
+- return `<Promise>` undefined hasta ser completado.
 
 Fuerza a todas las operaciones I/O encoladas asociadas con un fichero al estado de finalización de I/O sincronizada con el SO.
 
@@ -195,32 +195,33 @@ Diferente a filehanlde.sync, este método no borra metadatos modificados.
 
 ### filehandle.fd
 
-- <number> El file descriptor numérico manejado por el objeto <FileHandler>
+- `<number>` El file descriptor numérico manejado por el objeto <FileHandler>
 
 ### filehandle.read(buffer, offset, length, position)
 
-- buffer <Buffer> | <TypedArray> | <DataView> Un buffer que será rellenado con los datos leídos del fichero.
-- offset <integer> El lugar en el buffer desde el que iniciar a rellenar.
-- length <integer> El número de bytes a leer
-- position <integer> | <null> El lugar desde el que comenzar a ller en el fichero. Si es null, los dtos se leerán desde el lugar actual en el fichero, y la posición será actualizada. Si position es un integer, el file position actual permanecerá sin cambios.
-- return <Promise> Hasta completarse retorna un objeto con dos props:
-  - bytesRead <integer> El número de bytes leídos
-  - buffer <Buffer> | <TypedArray> | <DataView> Una referencia pasada en el argument buffer.
- 
+- buffer `<Buffer>` | `<TypedArray>` | `<DataView>` Un buffer que será rellenado con los datos leídos del fichero.
+- offset `<integer>` El lugar en el buffer desde el que iniciar a rellenar.
+- length `<integer>` El número de bytes a leer
+- position `<integer>` | `<null>` El lugar desde el que comenzar a ller en el fichero. Si es null, los dtos se leerán desde el lugar actual en el fichero, y la posición será actualizada. Si position es un integer, el file position actual permanecerá sin cambios.
+- return `<Promise>` Hasta completarse retorna un objeto con dos props:
+  - bytesRead `<integer>` El número de bytes leídos
+  - buffer `<Buffer>` | `<TypedArray>` | `<DataView>` Una referencia pasada en el argument buffer.
+
+
 Lee datos desde un fichero y los guarda en un buffer dado.
 
 Si el fichero no es modificado concurrentemente, el end-of-file se llega cuando el número de bytes leídos son 0.
 
 ### filehandle.read([options])
 
-- options <Object>
-  - buffer <Buffer> | <TypedArray> | <DataView> Un buffer que será rellenado con los datos leidos. Default Buffer.alloc(16384)
-  - offset <integer> El lugar en el buffer desde el que empezar a rellenar. Default 0
-  - length <integer> El número de bytes a leer. Default buffer.byteLength - offset.
-  - positon <integer> | <null> El lugar desde el que comenzar a leer datos desde el fichero. Si es null, los datos se leerán desde la actual posición dentro del fichero, y position será actualizado. Si position es un integer, la posición actual en el fichero permanecerá sin cambios. Default null.
-- return <Promise> retorna un objeto con dos props hasta completarse la tarea:
-  - bytesRead <integer> El número de bytes a leer
-  - buffer <Buffer> | <TypedArray> | <DataView> Una referencia pasada por el argumento buffer.
+- options `<Object>`
+  - buffer `<Buffer>` | `<TypedArray>` | `<DataView>` Un buffer que será rellenado con los datos leidos. Default Buffer.alloc(16384)
+  - offset `<integer>` El lugar en el buffer desde el que empezar a rellenar. Default 0
+  - length `<integer>` El número de bytes a leer. Default buffer.byteLength - offset.
+  - positon `<integer>` | `<null>` El lugar desde el que comenzar a leer datos desde el fichero. Si es null, los datos se leerán desde la actual posición dentro del fichero, y position será actualizado. Si position es un integer, la posición actual en el fichero permanecerá sin cambios. Default null.
+- return `<Promise>` retorna un objeto con dos props hasta completarse la tarea:
+  - bytesRead `<integer>` El número de bytes a leer
+  - buffer `<Buffer>` | `<TypedArray>` | `<DataView>` Una referencia pasada por el argumento buffer.
 
 Lee datos desde un fichero y los almacena en un buffer dado.
 
@@ -228,14 +229,14 @@ Si el fichero no está siendo modificado a la vez, se llega a end-of-file cuando
 
 ### filehandler.read(buffer[, options])
 
-- buffer <Buffer> | <TypedArray> | <DataView> Un buffer que será rellenado con los datos leídos del fichero.
-- options <Object>
-  - offset <integer> La posición en el buffer desde el que se va a comenzar a rellenar. Default 0
-  - length <integer> El número de bytes a leer. Default buffer.byteLength - offset
-  - position <integer> El lugar desde el que comenzar a leer datos del fichero. Si es null, los datos serán leídos desde la actual posición dentro del fichero, y la posición será actualizada. Si position es un integer, el position actual permanecerá sin cambios. Default null.
- - return <Promise> Hasta completarse retorna un objeto con dos props:
-   - bytesRead <integer> El número de bytes a leer
-   - buffer <Buffer> | <TypedArray> | <DataView> Una referencia al buffer pasado por argumento.
+- buffer `<Buffer>` | `<TypedArray>` | `<DataView>` Un buffer que será rellenado con los datos leídos del fichero.
+- options `<Object>`
+  - offset `<integer>` La posición en el buffer desde el que se va a comenzar a rellenar. Default 0
+  - length `<integer>` El número de bytes a leer. Default buffer.byteLength - offset
+  - position `<integer>` El lugar desde el que comenzar a leer datos del fichero. Si es null, los datos serán leídos desde la actual posición dentro del fichero, y la posición será actualizada. Si position es un integer, el position actual permanecerá sin cambios. Default null.
+ - return `<Promise>` Hasta completarse retorna un objeto con dos props:
+   - bytesRead `<integer>` El número de bytes a leer
+   - buffer `<Buffer>` | `<TypedArray>` | `<DataView>` Una referencia al buffer pasado por argumento.
   
 Lee datos desde un fichero y los guarda a un buffer dado.
 
@@ -243,9 +244,9 @@ Si el fichero no está siendo modificado a la vez, un end-of-file se obtendrá c
 
 ### filehandle.readableWebStream(options) __Experimental__
 
-- options <Object>
-  - type <string> | <undefined> Define si abrir un stream normal o de bytes. Default undefined
-- return <ReadableStream>
+- options `<Object>`
+  - type `<string>` | `<undefined>` Define si abrir un stream normal o de bytes. Default undefined
+- return `<ReadableStream>`
 
 Retorna un readableStream que puede ser usado para leer los datos del fichero.
 
@@ -266,4 +267,163 @@ await file.close();
 Mientras que el ReadableStream lee el fichero hasta acabarlo, no cerrará el FileHandle automáticamente. Se puede llamar manualmente aún al método fileHandle.close().
 
 ### filehandle.readFile(options)
+
+- options `<Object>` | `<string>`
+  - encoding `<string>` | `<null>` default null
+  - signal `<AbortSignal>` Permite abortar un readFile en progreso
+- return `<Promise>` Se ejecuta tras la lectura correcta con el contenido del fichero. Si no tiene enconding especificado (usando options.encoding), los datos retornados serán un Buffer. De otra manera, serán string.
+
+
+Lee asíncronamente el fichero completo.
+
+Si options es un string entonces especifica el encoding.
+
+El FileHandle tiene que soportar lectura.
+
+Si una o más llamadas a fileHandle.read() a un fichero son realizadas y luego se llama a filehandle.readFile(), los datos serán leídos desde la posición actual hasta el final del fichero. No permite la lectura desde el inicio del fichero.
+
+
+### filehandle.readLines([options])
+
+- options `<Object>`
+  - encoding `<string>` Default null
+  - autoClose `<boolean>` Default true
+  - emitClose `<boolean>` Default true
+  - start `<integer>`
+  - end `<integer>` Default infinity
+  - highWaterMark `<integer>` Default 64 * 1024
+- return `<readline.InterfaceConstructor>`
+
+
+Método de ayuda para crear un interfaz de readLine y strimear sobre el fichero. 
+
+```javascript
+import { open } from 'node:fs/promises';
+
+const file = await open('./some/file/to/read');
+
+for await (const line of file.readLines()) {
+  console.log(line);
+}
+```
+
+
+### filehandle.readv(buffers[, position])
+
+- buffers `<Buffer[]>` | `<TypedArray[]>` | `<DataView[]>`
+- position `<integer>` | `<null>` Offset desde el inicio del fichero desde el que los datos deben ser leídos. Si position no es un number, los datos serán leídos desde la posición actual. Default null
+- return `<Promise>` Objeto con dos props:
+  - bytesRead `<integer>` El número de bytes leídos.
+  - buffers `<Buffer[]>` | `<TypedArray[]>` | `<DataView[]>` Propiedad que contiene una referencia a los buffers pasados por argumento.
+
+
+### filehandle.stat([options])
+
+- options `<Object>`
+  - bigint `<boolean>` Indica si el retorno debe ser un bigint Default fasle.
+- return `<Promise>` Completo con un `<fs.Stats>` para el fichero
+
+
+### filehandle.sync()
+
+- return `<Promise>` Completo con undefined en caso de éxito.
+
+
+Pide que todos los datos para el file descriptor abierto sea borrado en el device. Depende del sistema operativo y el device.
+
+
+### filehandle.truncate(len)
+
+- len `<integer>` Default 0
+- return `<Promise>` Completa con undefined en caso de éxito.
+
+
+Trunca el fichero.
+
+Si el fichero era más largo de len bytes, sólo los primeros len bytes serán retornados en el fichero.
+
+```javascript
+import { open } from 'node:fs/promises';
+
+let filehandle = null;
+try {
+  filehandle = await open('temp.txt', 'r+');
+  await filehandle.truncate(4);
+} finally {
+  await filehandle?.close();
+}
+```
+
+Si el fichero es más corto que len, es extendido, y la parte extendida se rellena con '/0';
+
+Si len es negativo se usará 0 en su lugar.
+
+
+### filehandle.utimes(atime, mtime)
+
+- atime `<number>` | `<string>` | `<Date>`
+- mtime `<number>` | `<string>` | `<Date>`
+- return `<Promise>`
+
+
+Cambia los timestamps del file system del objeto referenciado por FileHandle y entonces resuelve las promesas sin argumenos hasta completarse.
+
+
+### filehandle.write(buffer, offset[, length[, position]])
+
+- buffer `<Buffer>` | `<TypedArray>` | `<DataView>`
+- offset `<integer>` La posición inicial del buffer desde la que se comenzarán a escribir los datos
+- length `<integer>` El número de bytes desde buffer a escribir. Default buffer.byteLength - offset
+- position `<integer>`| `<null>` Offset del fichero desde el que los datos de buffer serán escritos. Si position no es un number, los datos serán escritos desde la posición actual. Default null.
+- return `<Promise>`
+
+
+La promesa se resuelve con un objeto que contiene dos props:
+
+- bytesWritten `<integer>` El número de bytes escritos
+- buffer `<Buffer>` | `<TypedArray>` | `<DataView`> Una referencia al buffer escrito
+
+
+No es seguro usar filehandle.write() múltiples veces en un mismo fichero sin esperar a la promesa ser resuelta o rechazada. Para este otro escenario, usar filehandle.createWriteStream().
+
+En linux, la escritura posicional no funciona cuando el fichero es abierto en modo append. El kernel ignora el argument position y siempre agrega los datos al final del fichero.
+
+
+### filehandle.write(buffer[, options])
+
+- buffer `<Buffer>` | `<TypedArray>` | `<DataView>`
+- optinos `<Object>`
+  - offset `<integer>` Default 0
+  - length `<integer>` Default buffer.byteLength - offset
+  - position `<integer>` Default null
+- return `<Promise>`
+
+
+Escribe buffer al fichero
+
+Similar a filehandle.write, pero esta versión toma un options opcional. Si options no es especificado, se tomarán los valores por defecto.
+
+
+### filehandle.write(string[, position[, encoding]])
+
+- string `<string>`
+- position `<integer>` | `<null>` Offset desde el inicio del fichero donde los datos de string serán escritos. Si position no es un number los datos serán escritos desde la posición actual. Default null.
+- encoding `<string>` El encoding esperado Default utf8
+- return `<Promise>`
+
+
+Escribe string a un fichero. Si string no es un string, la promesa será rechazada con un error.
+
+La promesa es resuelta con un objeto que contiene las props:
+
+- bytesWritten `<integer>` El número de bytes escritos
+- buffer `<string>` Una referencia al string escrito
+
+
+No es seguro llamar varias veces a .write sin esperar a que las promesas sean completadas.
+
+En linux no funciona la escritura posicional.
+
+
+### filehandle.writeFile(data, options)
 
