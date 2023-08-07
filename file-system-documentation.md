@@ -1295,4 +1295,21 @@ try {
 }
 ```
 
+## File System flags
+
+- 'a': append. El fichero es creado si no existe.
+- 'ax': Igual que 'a' pero falla si el path existe.
+- 'a+': read and append. Fichero creado si no existe.
+- 'ax+': Igaul que a+ pero falla si el path existe.
+- 'as': append sync. Fichero creado si no existe.
+- 'as+': read y append sync. Fichero creado si no existe.
+- 'r': read. Exception si no existe.
+- 'r+': read and write. Exception si no existe.
+- 'rs+': read and write sync.
+- 'w': write. Fichero creado si no existe o truncado si existe.
+- 'wx': Igual que w pero falla si el path existe.
+- 'w+': read and write. Fichero creado si no existe, truncado si existe.
+- 'wx+': Igual que w+ pero falla si el path exsite.
+
+
 
