@@ -490,3 +490,809 @@ Usar fsPromises.access() para checkear la accesibilidad a un fichero antes de us
 
 ### fsPromises.appendFile(path, data[, options])
 
+- path `<string>` | `<Buffer>` | `<URL>` | `<FileHandle>` filename o FileHandle
+- data `<string>` | `<Buffer>`
+- options `<Object>` | `<string>`
+  - encoding `<string>` | `<null>` Default utf8
+  - mode `<integer>` Default 0o666
+  - flag `<string>` Default 'a'
+- return `<string>` Completa con undefined si tiene éxito.
+
+
+
+Agrega asíncronamente a un fichero, creando el fichero si no existe aún. data puede ser un string o un Buffer.
+
+Si options es un string se toma como el encoding
+
+La opción mode sólo afecta a los nuevos ficheros creados.
+
+El path debe ser especificado como un FileHandle que ha sido abierto como append.
+
+
+### fsPromises.chmod(path, mode)
+
+- path `<string>` | `<Buffer>` | `<URL>`
+- mode `<string>` | `<integer>`
+- return `<Promise>` Completa con undefined si tiene éxito
+
+
+Cambia los permisos de un fichero
+
+
+### fsPromises.chown(path, uid, gid)
+
+- path `<string>` | `<Buffer>` | `<URL>`
+- uid `<integer>`
+- gid `<integer>`
+- return `<Promise>` Completa con undefined si tiene éxito.
+
+
+Cambia la propiedad del fichero.
+
+
+### fsPromises.copyFile(src, dest[, mode])
+
+- src `<string>` | `<Buffer>` | `<URL>` filename del recurso a copiar
+- dest `<string>` | `<Buffer>` | `<URL>` filename del destino al que copiar
+- mode `<integer>` Modificadores opcionales que especifican el comportamiento de la operación de copia. Es posible crear una máscara bit a bit o dos o más valores (ej. fs.constants.COPYFILE_EXCL | fs.constants.COPYFILE_FICLONE) Default 0
+  - fs.constants.COPYFILE_EXCL La operación de copia fallará si dest ya existe.
+  - fs.constants.COPYFILE_FICLONE La operación de copia tratará de crear un reflink copy-on-write. Si la plataforma no soporta copy-on-write, entonces el mecanismo de copy fallback es usado.
+  - fs.constants.COPYFILE_FICLONE_FORCE La operación de copia tratará de crear un reflink copy-on-write. Si la pla...
+- return `<Promise>` undefined si se completa con éxito
+
+
+Copia asíncronamente src a dest. Por defecto, dest es sobrescrito si ya existe.
+
+No se garantiza la atomicidad de la operación de copia. Si un error ocurre después de que el fichero de destino haya sido abierto, se tratará de eliminar el destino.
+
+```javascript
+import { copyFile, constants } from 'node:fs/promises';
+
+try {
+  await copyFile('source.txt', 'destination.txt');
+  console.log('source.txt was copied to destination.txt');
+} catch (err) {
+  console.error('The file could not be copied');
+}
+
+// Usando COPYFILE_EXCL, la operación fallará si el destination.txt ya existe.
+try {
+  await copyFile('source.txt', 'destination.txt', constants.COPYFILE_EXCL);
+  console.log('source.txt was copied to destination.txt');
+} catch {
+  console.error('The file could not be copied');
+}
+```
+
+
+### fsPromises.cp(src, dest[, options])
+
+### fsPromises.lchmod(path, mode)
+
+- path `string` | `Buffer` | `URL`
+- mode `integer`
+- return `Promise` Completa con undefined si tiene éxito
+
+
+Cambia los permisos de un symbolic link
+
+Este método sólo se implementa en MacOS
+
+
+### fsPromises.lchown(path, uid, gid)
+
+- path `string` | `Buffer` | `URL`
+- uid `integer`
+- gid `integer`
+- return `Promise` Completa con undefined si tiene éxito
+
+
+Cambia la propiedad de un symbolic link
+
+
+### fsPromises.lutimes(path, atime, mtime)
+
+- path `string` | `Buffer` | `URL`
+- atime `number` | `string` | `Date`
+- mtime `number` | `string` | `Date`
+- return `Promise` Completa con undefined si tiene éxito
+
+
+Cambia el acceso y tiempos de modificación de un fichero de la misma manera que fsPromises.utimes(), con la diferencia que si el path se refiere a un symbolic link, entonces el link no es deferenciado, en su lugar los timestamps del symbolic link son cambiados.
+
+
+### fsPromises.link(existingPath, newPath)
+
+- existingPath `string` | `Buffer` | `URL`
+- newPath `string` | `Buffer` | `URL`
+- return `Promise` undefined si éxito
+
+
+Crea un nuevo link desde el existingPath al newPath.
+
+
+### fsPromises.lstat(path[, option])
+
+- path `string` | `Buffer` | `URL`
+- options `Object`
+  - bigint `boolean` Si los valores retornados en el objeto `fs.Stats` deben ser bigint. Default false
+- return `Promise` Completa con `fs.Stats` para el symbolic link dado en path
+
+
+Equivalente a fsPromises.stat() con la diferencia que path se refiere a un symbolic link.
+
+
+### fsPromises.mkdir(path[, options])
+
+- path `string` | `Buffer` | `URL`
+- options `Object` | `integer`
+  - recursive `boolean` Default false
+  - mode `string` | `integer` No soportado en Windows Default 0o777
+- return `Promise` Si recursive es false completa con undefined, o el primer path del directorio creado si recursive es true
+
+
+Crea asíncronamente un directorio
+
+```javascript
+import { mkdir } from 'node:fs/promises';
+
+try {
+  const projectFolder = new URL('./test/project/', import.meta.url);
+  const createDir = await mkdir(projectFolder, { recursive: true });
+
+  console.log(`Created ${createDir}');
+} catch (err) {
+  console.error(err.message);
+}
+```
+
+
+### fsPromises.mkdtemp(prefix[, options])
+
+- prefix `string`
+- options `string` | `Object`
+  - encoding `string` Default utf8
+- return `Promise` Completa con un string que contiene el path con el nuevo directorio temporal creado
+
+
+Crea un directorio temporal único. Un nombre de directorio único es generado con 6 caracteres random al final del prefix dado. Evitar usar X en el prefix.
+
+El opcional options puede ser un string, lo que sería el encoding
+
+```javascript
+import { mkdtemp } from 'node:fs/promises'
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+
+try {
+  await mkdtemp(join(tmpdir(), 'foo-'));
+} catch (err) {
+  console.error(err);
+}
+```
+
+
+### fsPromises.open(path, flags[, mode])
+
+- path `string` | `Buffer` | `URL`
+- flags `string` | `number` Default r
+- mode `string` | `integer` file mode. Default 0o666 (r y w)
+- return `Promise` FileHandle
+
+
+Abre un FileHandle
+
+
+### fsPromises.opendir(path[, options])
+
+- path `string` | `Buffer` | `URL`
+- options `Object`
+  - encoding `string` | `null` Default utf8
+  - bufferSize `number` Número de entradas de directorio guardadas internamente cuando se lee desde el directorio. Mayor número es mejor rendimiento pero más memoria usada. Default 32
+  - recursive `boolean` Default false
+- return `Promise` Completa con un fs.Dir
+
+
+Abre un directorio asíncronamente para escaneo iterativo.
+
+Crea un fs.Dir, que contiene todas las funciones de lectura y limpieza del directorio.
+
+La opción encoding se setea para el path.
+
+```javascript
+import { opendir } from 'node:fs/promises';
+
+try {
+  const dir = await opendir('./');
+  for await (const dirent of dir) {
+    console.log(dirent.name);
+  }
+} catch (err) {
+  console.error(err);
+}
+```
+
+Se cierra automáticamente.
+
+
+### fsPromises.readdir(path[, options])
+
+- path `string` | `Buffer` | `URL`
+- options `string` | `Object`
+  - encoding `string` Default utf8
+  - withFileTypes `boolean` Default false
+  - recursive `boolean` false
+- return `Promise` Completa con un array de nombres de ficheros en el directorio excluyendo '.' y '..'
+
+
+Lee los contenidos de un directorio
+
+Si options.withFileTypes es true, el array resultante contendrá objetos fs.Dirent
+
+```javascript
+import { readdir } from 'node:fs/promises';
+
+try {
+  const files = await readdir(path);
+  for (const file of files) {
+    console.log(file);
+  }
+} catch (err) {
+  console.error(err);
+}
+```
+
+
+### fsPromises.readFile(path[, options])
+
+- path `string` | `Buffer` | `URL` | `FileHandle` filename o FileHandle
+- options `Object` | `string`
+  - enconding `string` | `null` Default null
+  - flag `string` Default r
+  - signal `AbortSignal` Permite abortar un readFile en progreso
+- return `Promise` Contenido del fichero
+
+
+Asíncronamente lee el contenido completo de un fichero.
+
+Cuando path es un directorio, depende del SO para su comportamiento. En FreeBSD se retorna una representación del directorio, en el resto rejected.
+
+```javascript
+import { readFile } from 'no:fs/promises';
+
+try {
+  const filePath = new URL('./package.json', import.meta.url);
+  const contents = await readFile(filePath, { encoding: 'utf8' });
+  console.log(contents);
+} catch (err) {
+  console.error(err.message);
+}
+```
+
+Se puede abortar la lectura en proceso con un AbortSignal. Rejected si ocurre con un AbortError:
+
+```javascript
+import { readFile } from 'node:fs/promises';
+
+try {
+  const controller = new AbortController();
+  const { signal } = controller;
+  const promise = readFile(fileName, { signal });
+
+  // Abortar el request antes de que la promesa se complete
+  controller.abort();
+
+  await promise;
+} catch (err) {
+  console.error(err);
+}
+```
+
+
+### fPromises.readlink(path[, options])
+
+- path `string` | `Buffer` | `URL`
+- options `string` | `Object`
+  - encoding `string` Default utf8
+- return `Promise` linkString
+
+
+Lee el contenido de un symbolic link referido al path. 
+
+
+### fsPromises.realpath(path[, options])
+
+- path `string` | `Buffer` | `URL`
+- options `string` | `Object`
+  - encoding `string` Default utf8
+- return `Promise` Path resuelto
+
+
+Determina el lugar de path usando la misma semántica de fs.realpath.native().
+
+Sólo paths que puedan ser convertidas a utf8
+
+
+### fsPromises.rename(oldPath, newPath)
+
+- oldPath `string` | `Buffer` | `URL`
+- newPath `string ` | `Buffer` | `URL`
+- return `Promise` undefined
+
+
+Renombra oldPath a newPath
+
+
+### fsPromises.rmdir(path[, options])
+
+- path `string` | `Buffer` | `URL`
+- options `Object`
+  - maxRetries `integer` Si un EBUSY, EMFILE, ENFILE, ENOTFILE o EPERM error es econtrado, Node.js vuelve a probar tras esperar retryDelay ms. Número de reintentos. Ignorado si recursive es true. Default 0
+  - recursive `boolean` Si es true, borra recursivamente. En este modo reintenta al fallar. Default false. Deprecated
+  - retryDelay `integer` La cantidad de tiempo en ms para esperar entre reintentos. Default 100.
+- return `Promise` undefined
+
+
+Borra el directorio identificado por path
+
+Usar fsPromises.rmdir() en un fichero (no un dir) resulta en un ENOENT error en windows y un ENOTDIR en el resto.
+
+Para obtener un comportamiento similar rm -rf en Unix usar fsPromises.rm() con las opciones `{ recursive: true, force: true }`
+
+
+### fsPromises.rm(path[, options])
+
+- path `string` | `Buffer` | `URL`
+- options `Object`
+  - force `boolean` Si es true las excepciones serán ignoradas si el path no existe. Default true
+  - maxRetries `integer` Default 0
+  - recursive `boolean` Default false
+  - retryDelay `integer` Default 100
+- return `Promise` undefined
+
+
+### fsPromises.stat(path[, options])
+
+- path `string` | `Buffer` | `URL`
+- options `Object`
+  - bigint `boolean` Default false
+- return `Promise` fs.Stats
+
+
+### fsPromises.statfs(path[, options])
+
+- path `string` | `Buffer` | `URL`
+- options `Object`
+  - bigint `boolean` Default false
+- return `Promise` fs.StatFs.
+
+
+
+### fsPromises.symlink(target, path[, type])
+
+- target `string` | `Buffer` | `URL`
+- path `string` | `Buffer` | `URL`
+- type `string` Default 'file'
+- return `Promise` undefined
+
+
+Crea un symbolic link
+
+El argumento type es sólo usado en Windows, puede ser dir, file o junction.
+
+
+### fsPromises.truncate(path[, len])
+
+- path `string` | `Buffer` | `URL`
+- len `integer` Default 0
+- return `Promise` undefined
+
+
+Trunca (acorta o extiende) el contenido de path en len bytes
+
+
+### fsPromises.unlink(path)
+
+- path `string` | `Buffer` | `URL`
+- return `Promise` undefined
+
+
+Si path es un symbolic link es removido sin afectar a directorios o ficheros. Si no es un symbolic link, el fichero se borra.
+
+
+### fsPromises.utimes(path, atime, mtime)
+
+- path `string` | `Buffer` | `URL`
+- atime `number` | `string` | `Date`
+- mtime `number` | `string` | `Date`
+- return `Promise` undefined
+
+
+Cambia los timestamps de un objeto referenciado en path
+
+Los argumentos atime y mtime siguen las reglas:
+- Los valores pueden ser números que representen fechas en Unix, Date o string numérico como `123456789.0`.
+- Si el valor no puede ser convertido en número o es NaN, Infinity o -Infinity, se lanza un Error
+
+
+### fsPromises.watch(filename[, options])
+
+- filename `string` | `Buffer` | `URL`
+- options `Object` | `string`
+  - persistent `boolean` Indica si el proceso debe continuar corriendo mientras que los ficheros son seguidos. Default true
+  - recursive `boolean` Indica si se debe mirar también subdirectorios. Default false.
+  - encoding `string` Default utf8
+  - signal `AbortSignal`
+- return `AsyncIterable`
+  - eventType `string` Tipo de cambio
+  - filename `string` | `Buffer` El nombre del fichero cambiado
+
+
+```javascript
+const { watch } = require('node:fs/promises');
+
+const ac = new AbortController();
+const { signal } = ac;
+setTimeout(() => ac.abort(), 10000);
+
+(async () => {
+  try {
+    const watcher = watch(__filename, { signal });
+    for await (const event of watcher)
+      console.log(event);
+  } catch (err) {
+    if (err.name === 'AbortError')
+      return;
+    throw err;
+  }
+})();
+```
+
+
+### fsPromises.writeFile(file, data[, options])
+
+- file `string` | `Buffer` | `URL` | `FileHandle` filename o FileHandle
+- data `string` | `Buffer` | `TypedArray` | `DataView` | `AsyncIterable` | `Iterable` | `Stream`
+- options `Object` | `string`
+  - encoding `string` | `null` Default utf8
+  - mode `string` Default 0o666
+  - flag `string` Default `w`
+  - signal `AbortController`
+- return `Promise` undefined
+
+
+Asíncronamente escribe datos a un fichero, reemplazando el fichero si existe previamente.
+
+encoding es ignorado si data es un Buffer.
+
+Si options es un string especifica el encoding
+
+mode sólo afecta a los nuevos ficheros creados.
+
+No es seguro llamar varias veces a fsPromises.writeFile sin esperar a las promesas
+
+```javascript
+import { writeFile } from 'node:fs/promises';
+import { Buffer } from 'node:buffer';
+
+try {
+  const controller = new AbortController();
+  const { signal } = controller;
+  const data = new Uint8Array(Buffer.from('Hello'));
+  cosnt promise = writeFile('message.txt', data, { signal });
+
+  controller.abort();
+
+  await promise;
+} catch (err) {
+  console.error(err);
+}
+```
+
+### fsPromises.contants
+
+```typescript
+Object
+```
+
+Retorna un objeto que contiene contantes de uso común para operaciones de sistema. El objeto es el mismo que fs.contants.
+
+
+## Callback API
+
+El api de callbacks realiza todas las operaciones asíncronamente, sin bloquear el event loop, y entonces invoca un callback cuando ha completado y tiene error.
+
+El callback api usa el threadpool de Node.js para realizar operaciones con ficheros fuera del thread del event loop. Estas operaciones no están sincronizadas ni son threadSafe. Cuidado con corrupción de datos.
+
+
+### fs.access(path[, mode], callback)
+
+```typescript
+type args = {
+  path: string | Buffer | URL;
+  mode: integer = fs.constants.F_OK;
+  callback: Function;
+}
+```
+
+Testea los permisos del usuario para un fichero o directorio especificado por path.
+
+```javascript
+import { access, constants } from 'node:fs';
+
+const file = 'package.json';
+
+access(file, constants.F_OK, (err) => {
+  console.log(`${file} ${err ? 'does not exist' : 'exist'} `);
+});
+
+access(file, constants.R_OK, err => console.log(`${file} ${err ? 'is not readable' : 'is readable'));
+
+access(file, constants.W_OK, err => console.log(`${file} ${err ? 'is not writable' : 'is writable'));
+
+access(file, contants.R_OK | constants.W_OK, err => console.log(`${file} ${err ? 'is not' : 'is' } readable and writable`);
+```
+
+No usar antes de fs.open, fs.readFile o fs.writeFile.
+
+
+### fs.appendFile(path, data[, options], callback)
+
+```typescript
+type args = {
+  path: string | Buffer | URL | number; // filename o file descriptor
+  data: string | Buffer;
+  options: {
+    encoding: string = 'utf8';
+    mode: string = '0o666';
+    flag: string = 'a';
+  } | string;
+  callback: Function;
+}
+```
+
+Asíncronamente agrega datos a un fichero, creando el fichero si no existe. Data puede ser string o Buffer.
+
+```javascript
+import { appendFile } from 'node:fs';
+
+appendFile('message.txt', 'data to append', (err) => {
+  if (err) throw err;
+  console.log('The data to append was appended to file');
+});
+```
+
+Si optinons es un string se toma como el encoding
+
+```javascript
+import { appendFile } from 'node:fs';
+
+appendFile('message.txt', 'data to append', 'utf8', callback);
+```
+
+path puede ser especificado como un file descriptor numérico que ha sido abierto para append (usando fs.open() o fs.openSync()). El file descriptor no se cerrará automáticamente
+
+```javascript
+import { open, close, appendFile } from 'node:fs';
+
+function closeFd(fd) {
+  close(fd, (err) => {
+    if (err) throw err;
+  });
+}
+
+open('message.txt', 'a', (err, fd) => {
+  if (err) throw err;
+  try {
+    appendFile(fd, 'data to append', 'utf8', err => {
+      closeFd(fd);
+      if (err) throw err;
+    });
+  } catch (err) {
+    closeFd(fd);
+    throw err;
+  }
+});
+```
+
+
+### fs.chmod(path, mode, callback)
+
+```typescript
+type args = {
+  path: string | Buffer | URL;
+  mode: string | integer;
+  callback: Function;
+}
+```
+
+Asíncronamente cambia los permisos para un fichero. El callback solo recibe un Error.
+
+```javascript
+import { chmod } from 'node:fs';
+
+chmod('my_file.txt', 0o777, err => {
+  if (err) throw err;
+  conosle.log('The permissions have been changed');
+});
+```
+
+
+### File modes
+
+|      Constant        | Octal |      Description        |
+| -------------------- | ----- | ----------------------- |
+| fs.constants.S_IRSUR | 0o400 | Read by owner           |
+| fs.constants.S_IWUSR | 0o200 | write by owner          |
+| fs.constants.S_IXUSR | 0o100 | execute/search by owner |
+| fs.constants.S_IRGRP | 0o40  | read by group           |
+| fs.constants.S_IWGRP | 0o20  | write by group          |
+| fs.constants.S_IXGRP | 0o10  | execute/search by group |
+| fs.constants.S_IROTH | 0o4   | read by others          |
+| fs.constants.S_IWOTH | 0o2   | write by others         |
+| fs.constants.S_IXOTH | 0o1   | execute/search by others|
+
+
+Un modo más sencillo de usar mode es usar unsa secuencia de 3 octales (ej 765). El primero se refiere al propietario, el segundo al grupo y el tercero a otros.
+
+| Number | Description             |
+| ------ | ----------------------- |
+|   7    | read, write and execute |
+|   6    | read and write          |
+|   5    | read and execute        |
+|   4    | read only               |
+|   3    | write and execute       |
+|   2    | write only              |
+|   1    | execute only            |
+|   0    | no permissions          |
+
+
+### fs.chown(path, uid, gid, callback)
+
+```typescript
+type args = {
+  path: string | Buffer | URL;
+  uid: integer;
+  gid: integer;
+  callback: Function;
+}
+```
+
+Asíncronamente cambia el propietario de un fichero.
+
+
+### fs.close(fd[, callback])
+
+```typescript
+type args = {
+  fs: integer;
+  callback: Function;
+}
+```
+
+Cierra un file descriptor.
+
+Llamar a fs.close() en un file descriptor que esté actualmente en uso puede llevar a un comportamiento no deseado.
+
+
+### fs.copyFile(src, dest[, mode], callback)
+
+```typescript
+type args = {
+  src: string | Buffer | URL; // filename del recurso a copiar
+  dest: string | Buffer | URL; // filename destino
+  mode: integer; // modificador
+  callback: Function;
+}
+```
+
+Asíncronamente copia src to dest. Por defecto dest es sobreescrito.
+
+mode es un integer opcional que especifica el comportamiento de la operación de copia. 
+
+```javascript
+import { copyFile, constants } from 'node:fs';
+
+function callback(err) {
+  if (err) throw err;
+  console.log('hecho');
+}
+
+// destination.txt será creado o sobresscrito por defecto
+copyFile('source.txt', 'destination.txt', callback);
+
+// Usando COPYFILE_EXCL, la operación fallará si destination.txt ya existe.
+copyFile('source.txt', 'destination.txt', constants.COPYFILE_EXCL, callback);
+```
+
+
+### fs.cp(src, dest[, options], callback)
+`experimental`
+
+```typescript
+type args = {
+  src: string | URL; // path del recurso
+  dest: string | URL; // path del destino a copiar
+  options: {
+    deference: boolean = false; // deference symlinks
+    errorOnExit: boolean = false; // Suelta error al salir si force es false
+    filter: (src: string, dest: string) => boolean | Promise<boolean>;
+    force: boolean; // Sobreescribe el fichero o dir.
+    mode: integer = 0;
+    preserveTimestamps: boolean = false; // Si es true los timestamps de src se mantienen.
+    recursive: boolean = false;
+    verbatimSymlinks: boolean = false;
+  callback: Function;
+}
+```
+
+
+### fs.createReadStream(path[, options])
+
+```typescript
+type args = {
+  path: string | Buffer | URL;
+  options?: string | {
+    flags?: string = 'r';
+    encoding?: string;
+    fs?: integer | FileHandle;
+    mode?: integer = 0o666;
+    autoClose?: boolean = true;
+    emitClose?: boolean = true;
+    start?: integer;
+    end?: integer = Infinity;
+    highWaterMark?: integer = 64 * 1024;
+    fs?: Object | null;
+    signal?: AbortSignal | null;
+  }
+} => fs.ReadStream
+```
+
+```javascript
+import { createReadStream } from 'node:fs';
+
+const stream = createReadStream('/dev/input/event0');
+setTimeout(() => {
+  stream.close();
+  stream.push(null);
+  stream.read(0);
+}, 100);
+```
+
+```javascript
+import { createReadStream } from 'node:fs';
+
+createReadStream('sample.txt', { start: 90, end: 99 });
+```
+
+
+### fs.createWriteStream(path[, options])
+
+
+... resto igual que promises
+
+
+## Synchronous API
+
+... Igual al resto
+
+## Objetos comunes
+
+### Class: fs.Dir
+
+Representa un directorio.
+
+```javascript
+import { opendir } from 'node:fs/promises';
+
+try {
+  const dir = await opendir('./');
+  for await (const dirent of dir) {
+    console.log(dirent.name);
+  }
+} catch (err) {
+  console.error(err);
+}
+```
+
+
