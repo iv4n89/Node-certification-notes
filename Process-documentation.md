@@ -220,3 +220,35 @@ const resource =  new SomeResource();
 ```
 
 ### Event: 'warning'
+
+- warning `<Error>` Claves del warning son:
+  - name `<string>` El nombre del warning. Default `'Warning'`
+  - message `<string>` Descripción del warning provisto por el sistema
+  - stack `<string>` Dónde el warning fue lanzado
+
+
+El evento `warning` es emitido siempre que Node.js emite un process warning.
+
+Un process warning es similar a un error en que describe condiciones excepcionales que necesitan atención del usuario. Sin embargo, los warnings no son parte del flujo normal de Node.js y JS. Node.js puede lanzar warnings si detecta malas prácticas que pueden llevar a un rendimiento bajo, bugs, o vulnerabilidades de seguridad.
+
+```javascript
+import process from 'node:process';
+
+process.on('warning', warning => {
+  console.warn(warning.name); // nombre del warning
+  console.warn(warning.message); // mensaje del warning
+  console.warn(warning.stack); // stack trace
+});
+```
+
+Por defecto, Node.js va a imprimir los warnings a stderr. La opción `--no-warnings` puede ser usada para suprimir el output por defecto pero el evento `warning` será emitido igualmente por process.
+
+```zhe
+$ node
+> events.defaultMaxListeners = 1;
+> process.on('foo', () => {});
+> process.on('foo', () => {});
+> (node:38638) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 2 foo listeners added. Use emitter.setMaxListeners() to increase limit
+```
+
+
