@@ -468,3 +468,119 @@ No disponible en threads de workers.
 
 
 ### process.config
+
+- `<Object>`
+
+
+Retorna un `Object` que contiene la representación de las opciones usadas para compilar el ejecutable de Node.js actual. Es lo mismo que el fichero `config.gypi` producido cuando se corre el script `./configure`. 
+
+Un ejemplo de posible output sería:
+
+```json
+{
+  target_defaults:
+    { cflags: [],
+      default_configuration: `Release',
+      defines: [],
+      include_dirs: [],
+      libraries: [] },
+    variables:
+      {
+        host_arch: 'x64',
+        napi_build+version: 5,
+        node_install_npm: 'true',
+        node_prefix: '',
+        node_shared_cares: 'false',
+        node_shared_http_parser: 'false',
+        node_shared_libuv: 'false',
+        node_shared_zlib: 'false',
+        node_use_dtrace: 'false',
+        node_use_openssl: 'true',
+        node_shared_openssl: 'false',
+        strict_aliasing: 'true',
+        target_arch: 'x64',
+        v8_use_snapshot: 1
+      }
+}
+```
+
+No es sólo lectura y existen módulos que extienden, modifican o reemplazan por completo el valor de process.config.
+
+Modificar process.config, o cualquier propiedad hija, ha sido deprecado. process.config se hará read-only en una release futura.
+
+
+### process.connected
+
+- `<boolean>`
+
+
+Si el proceso de Node.js ha sido generado en un IPC Channel, process.connected retornará true mientras que el IPC Channel esté conectado, y false si se llama a process.disconnect().
+
+Una vez process.connected sea false, no será posible enviar más mensajes a través de process.send().
+
+
+### process.constrainedMemory()
+```Experimental```
+
+Obtiene la cantidad de memoria ram que el SO le da al proceso para que realize la operación, o undefined si no se conoce.
+
+
+### process.cpuUsage([previousValue])
+
+- previousValue `<Object>` Un valor previo retornado por process.cpuUsage()
+- return `<Object>`
+  - user `<integer>`
+  - system `<integer>`
+
+
+Retorna el usuario y tiempo de uso de CPU del proceso actual, en un objeto con propiedades user y system, cuyos valores son microsegundos. 
+
+Se puede pasar por argumento el resultado previo para que sean restados.
+
+```javascript
+import { cpuUsage } from 'node:process';
+
+const startUsage = cpuUsage();
+// { user: 38579, system: 6986 }
+
+// 500ms de uso de cpu
+const now = Date.now();
+while (Date.now() - now < 500);
+
+console.log(cpuUsage(startUsage));
+// { user: 514883, system: 11226 }
+```
+
+
+### process.cwd()
+
+- return `<string>`
+
+
+Retorna el directorio de trabajo actual del proceso de Node.js.
+
+```javascript
+import { cwd } from 'node:process';
+
+console.log(`Current directory: ${cwd()}`);
+```
+
+
+### process.debugPort
+
+- `<number>`
+
+Puerto usado por NOde.js cuando el debugger está activo.
+
+```javascript
+import process from 'node:process';
+
+process.debugPort = 5858;
+```
+
+
+### process.disconnect()
+
+Si el proceso de node.js ha sido generado dentro de un IPC Channel, este método cerrará el channel desde el proceso padre, permitiendo al proceso hijo salir de manera correcta una vez no hayan más conexiones activas.
+
+Tiene el mismo efecto que llamar a 
