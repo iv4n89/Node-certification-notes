@@ -251,4 +251,220 @@ $ node
 > (node:38638) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 2 foo listeners added. Use emitter.setMaxListeners() to increase limit
 ```
 
+En contraste, el siguiente ejemplo apaga el default warning output y agrega un custom handler al evento 'warning'.
 
+```zhe
+$ node --no-warnings
+> p + process.on('warning', (warning) => console.warn('Do not do that!'));
+> events.defaultMaxListeners = 1;
+> process.on('foo', () => {});
+> process.on('foo', () => {});
+> Do not do that!
+```
+
+La opción `--trace-warnings` del command-line puede ser usado para tener el output por defecto de los warnings incluido en el full stack trace del warning.
+
+Lanzando node con `--throw-deprecation` flag causará que los custom deprecation warnings sean tomados como excepciones.
+
+Usando el flag `--trace-deprecation` se imprimirá todos los custom deprecation en el stderr con el stack trace
+
+Usando el flag `--no-deprecation` no se tomarán en cuenta los custom deprecation.
+
+El flage `*-deprecation` sólo afecta a los warnings que usan el nombre `DeprecationWarning`.
+
+
+### Event: 'worker'
+
+- `worker` `<Worker>` El worker que fue creado
+
+
+El evento worker es emitido después de que un nuevo worker ha sido creado.
+
+
+### Emitir custom warnings
+
+Se verá en [process.emitWarning()](#emitwarning)
+
+
+### Node.js warning names
+
+No hay reglas estrictas para los tipos de warnings emitidos por Node.js (identificados por su propiedad name). Nuegos tipos pueden ser añadidos en cualquier momento. Algunos comunes son:
+
+- `DeprecationWarning`: Indica el uso de algo deprecado de Node.js. Este warning debe incluir una propiedad `code` que identifique el código deprecado.
+- `ExperimentalWarning`: Indica el uso de algo experimental de Node.js. Se advierte que puede cambiar en el futuro o eliminarse.
+- `MaxListenersExceededWarning`: Indica que demasiados listeners para un evento han sido registrados a un EventEmitter o un EventTarget. Esto es frecuentemente un indicador de memory leak.
+- `TimeOutOverflowWarning`: Indica que un valor numérico que no puede entrar en un integer de 32bits ha sido enviado desde un setTimeout o setInterval.
+- `UnsupportedWarning`: Indica uso de opciones no soportadas que serán ignoradas o tratadas como un error. Un ejemplo es el uso de http response status cuando se usa el api de compatibilidad de HTTP/2.
+
+
+### Signal events
+
+Los signal events serán emitidos cuando el process de Node.js recibe un signal. 
+
+Los signals no están disponibles en los threads de workers.
+
+El signal handler recibirá el signal name como el primer argumento ('SIGINT', 'SIGTERM', ...)
+
+El nombre de cada evento será el nombre en mayúsculas del nombre común del signal (ej. 'SIGINT' para SIGINT signals).
+
+```javascript
+import process from 'node:process';
+
+// Comenzar a leer desde stdin para que el process no salga.
+process.stdin.resume();
+
+process.on('SIGINT', () => {
+  console.log('Received SIGINT. Press Control-D to exit.');
+});
+
+// Usar una única función para manejar múltiples signals
+function handle(signal) {
+  console.log(`Received ${signal}`);
+}
+
+process.on('SIGINT', handle);
+process.on('SIGTERM', handle);
+```
+
+- `SIGUSR1` es reservado por Node.js para comenzar el debugger. Es posible instalar un listener pero hacerlo puede interferir con el debugger.
+- `SIGTERM` y `SIGINT` tienen handlers por defecto en no-Windows SO que resetean el terminal de node después de salir con código `128 + signal number`. Si uno de estos signals tiene un listener instalado, su comportamiento por defecto será removido (Node.js no saldrá).
+- `SIGPIPE` Es ignorado por defecto. Puede tener un listener instalado.
+- `SIGHUP` es generado en Windows cuando la consola de Windows es cerrada, y en otras plataformas bajo condiciones similares.
+- `SIGTERM` No es soportado en Windows, pero puede ser escuchado.
+- `SIGINT` es soportado por todas las plataformas y puede usualmente ser generado con `Ctrl` + `C`.
+- `SIGBREAK` es enviado en Windows cuando se pulsa `Ctrl` + `Break`. En plataformas no Windows, puede ser escuchado, pero no se puede generar.
+- `SIGWINCH` es enviado cuando la consola es cambiada de tamaño. En Windows sólo ocurre cuando se escribe en consola cuando el cursor ha sido movido, o cuando se usa un tty readable en raw mode.
+- `SIGKILL` no puede tener un listener instalado, si lo tiene mata a Node.js.
+- `SIGSTOP` no puede tener listeners instalados.
+- `SIGBUS`, `SIGFPE`, `SIGSEGV` y `SIGILL`, cuando no son enviados artificialmente con kill(2), inherentemente deja al proceso en un estado en el que no es seguro llamar a los listeners de JS. Hacer esto puede Node.js sin responder.
+- `0` puede ser enviado para salir del proceso, no tiene efectos si sale del proceso, pero lanza una excepción si el proceso no sale.
+
+
+En Windows no se soporta signals por lo que no tiene equivalencia a matar por signal, pero se puede emular con process.kill() y subprocess.kill():
+
+- Enviando `SIGINT`, `SIGTERM` y `SIGKILL` causará la muerte del proceso, luego el sub proceso reportará que el proceso ha sido acabado por un signal.
+- Enviar un signal `0` puede usar en cualquier plataforma para matar el proceso.
+
+
+### process.abort()
+
+Causa que el proceso de Node.js salga inmediatamente y genere un core file.
+
+No disponible en threads de workers.
+
+
+### process.allowedNodeEnvironmentFlags
+
+- `<Set>`
+
+
+Conjuto de solo lectura de flags disponibles dentro de NODE_OPTIONS environment var.
+
+Extiende Set, pero sobreescribe `has` para reconocer muchas representaciones posibles de flags. Retorna true en los siguientes casos:
+
+- Los flags pueden omitir el `-` o `--`. Ej. `inspect-brk`, en lugar de `--inspect-brk`.
+- Los flags pasados a V8 pueden reemplazar un guión bajo por uno normal, o al contrario (ej. `--perf_baic_prof`, `--perf_basic_prof`)
+- Los flags pueden contener uno o más caracteres `=`, después del primero los demás son ignorados (ej. `--stack-trace-limit=100`.
+- Los flags deben estar disponibles dentro de NODE_OPTIONS.
+
+
+### process.arch
+
+- `<string>`
+
+
+La arquitectura de la CPU para la cual el binario de Node.js fue compilado. Valores posibles son: `arm`, `arm64`, `ia32`, `mips`, `mipsel`, `ppc`, `ppc64`, `s390`, `s390x` y `x64`.
+
+```javascript
+import { arch } from 'node:process';
+
+console.log(`This processor architecture is ${arch}`);
+```
+
+
+### process.argv
+
+- `<string[]>`
+
+
+Retorna un array que contiene los argumentos pasados por el command-line cuando el proceso de Node.js fue ejecutado. El primer argumento será process.execPath. El segundo argumento será el path de JS para ser ejecutado. Los demás serán argumentos adicionales.
+
+```javascript
+import { argv } from 'node:process';
+
+argv.forEach((val, index) => {
+  console.log(`${index}: ${val}`);
+});
+```
+
+Lanzando el comando ```$node process-args.js one two=tree four``` tendremos:
+
+```
+0: /usr/local/bin/node
+1: /Users/mjr/work/node/process.args.js
+2: one
+3: two=three
+4: four
+```
+
+
+### process.argv0
+
+- `<string>`
+
+
+Guarda una copia de solo lectura del original argv[0] pasado a Node.js al inicio.
+
+```bash
+$ bash -c 'exec -a customArgv ./node'
+> process.argv[0]
+'/Volumes/code/external/node/out/Release/node'
+> process.argv0
+'customArgv0'
+```
+
+
+### process.channel
+
+- `<Object>`
+
+
+Si el proceso de Node.js fue generado dentro de un IPC Channel (child process), el `process.channel` referencia el IPC Channel. Si no existe un IPC Channel, será undefined.
+
+### process.channel.ref()
+
+Hace que el IPC Channel mantenga el event loop del proceso corriendo si `.unrief()` fue llamado.
+
+Típicamente manejado a través del número de listeners de `disconnect` y `message` en el objeto `process`. Sin embargo, puede ser usado para pedir un comportamiento por defecto.
+
+
+### process.channel.unref()
+
+Hace que el channel no mantenga el event loop activo y permite finalizarlo incluso mientras que el channel está activo aún.
+
+Típicamente manejado a través del número de listeners de `disconnect` y `message` en el objeto `process`. Sin embargo, puede ser usado para pedir un comportamiento por defecto.
+
+
+### process.chdir(directory)
+
+- directory `<string>`
+
+
+Cambia el directorio de trabajo actual de un proceso de Node.js o lanza una exception si no es capaz de hacerlo 
+
+```javascript
+import { chdir, cwd } from 'node:process';
+
+console.log(`Starting directory: ${cwd()}`);
+try {
+  chdir('/tmp');
+  console.log(`New Directory: ${cwd()}`);
+} catch (err) {
+  console.error(`chdir: ${err});
+}
+```
+
+No disponible en threads de workers.
+
+
+### process.config
