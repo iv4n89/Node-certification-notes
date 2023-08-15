@@ -583,4 +583,77 @@ process.debugPort = 5858;
 
 Si el proceso de node.js ha sido generado dentro de un IPC Channel, este método cerrará el channel desde el proceso padre, permitiendo al proceso hijo salir de manera correcta una vez no hayan más conexiones activas.
 
-Tiene el mismo efecto que llamar a 
+Tiene el mismo efecto que llamar a ChildProcess.disconnect() desde el proceso padre.
+
+Si el proceso de Node.js no fue generado en un IPC Channel, retornará undefined.
+
+
+### process.dlopen(module, filename[, flags])
+
+- module `<Object>`
+- filename `<string>`
+- flags `<os.constants.dlopen>` Default: `os.constants.dlopen.RTLD_LAZY`
+
+
+Permite cargar dinámicamente objetos compartidos. Es usado principalmente por require() para cargar Addons de C++, y no debe ser usado directamente, excepto en casos especiales. require() debe preferirse antes que process.dlopen() a menos que haya razones específicas como usar un custom flag o cargar desde ES modules.
+
+Los flags son integers que especifican un comportamiento específico.
+
+Importante al llamarlo que la instancia de module sea pasada. Las funciones exportadas por C++ serán entonces accesibles desde module.exports.
+
+```javascript
+import { dlopen } from 'node:process';
+import { constants } from 'node:os';
+import { fileURLToPath } from 'node:url';
+
+const module = { exports: {} };
+dlopen(module, fileURLToPath(new URL('local.node', import.meta.url)),
+      constants.dlopen.RTLD_NOW);
+module.exports.foo();
+```
+
+
+### process.emitWarning(warning[, options])
+
+- warning `<string> | <Error>` El warning a emitir
+- options `<Object>`
+  - type `<string>` Cuando warning es un string, type es el nombre a usar para el type del warning a ser emitido. Default `warning`
+  - code `<string>` Un identificador único para la instancia siendo emitida.
+  - ctor `<Function>` Cuando warning es un string, ctor es una función opcional usada para limitar el stack trace generado. Default: `process.emitWarning`.
+  - detail `<string>` Texto adicional a incluir con el error
+
+
+Este método puede ser usado para emitir process warnings customs o específicos de la aplicación. Pueden ser escuchados agregando un listener al evento 'warning'
+
+```javascript
+import { emitWarning } from 'node:process';
+
+// Emite un warning con un código adicional como detalle
+emitWarning('Something happened!', {
+  code: 'MY_WARNING',
+  detail: 'This is some additional information',
+});
+
+// Emite:
+// (node:56338) [MY_WARNING] Warning: Something happened!
+/// This is some additional information
+```
+
+```javascript
+import process from 'node:process';
+
+process.on('warning', (warning) => {
+  console.warn(warning.name);    // 'Warning'
+  console.warn(warning.message); // 'Something happened!'
+  console.warn(warning.code);    // 'MY_WARNING'
+  console.warn(warning.stack);   // Stack trace
+  console.warn(warning.detail);  // 'This is some additional information'
+});
+```
+
+Si warning es un Error, el argumento options es ignorado.
+
+
+### process.emitWarning(warning[, type[, code]][, ctor])
+
+
